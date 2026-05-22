@@ -8,7 +8,7 @@
 // Pointing TEMP/TMP at a directory inside the project avoids the issue.
 
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { argv, exit, platform } from 'node:process';
 
@@ -16,7 +16,23 @@ const projectRoot = resolve(import.meta.dirname, '..');
 const tempDir = resolve(projectRoot, '.nsis-temp');
 mkdirSync(tempDir, { recursive: true });
 
+// Auto-load .env (Node 20.6+). Keeps GH_TOKEN out of the shell history and
+// out of committed files — the project's .gitignore excludes .env.
+const envFile = resolve(projectRoot, '.env');
+if (existsSync(envFile)) {
+  process.loadEnvFile(envFile);
+  console.log(`[dist] loaded env from ${envFile}`);
+}
+
 const publish = argv.includes('--publish') ? 'always' : 'never';
+
+if (publish === 'always' && !process.env.GH_TOKEN) {
+  console.error(
+    '[dist] GH_TOKEN 没有设置。请把 token 写到项目根目录的 .env 文件（参考 .env.example），' +
+      '或者在当前 shell 里 export GH_TOKEN=...'
+  );
+  exit(1);
+}
 
 const env = {
   ...process.env,

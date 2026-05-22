@@ -5,4 +5,8 @@ dist-app
 *.log
 .DS_Store
 ~/.claude-manager
+.env
+.env.*
+!.env.example
+.nsis-temp
 .nsis-temp
