@@ -1,0 +1,164 @@
+@import 'highlight.js/styles/github.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme-aware brand color (RGB triplets, used by Tailwind via rgb(var(--brand-X) / a)) */
+:root,
+[data-theme='claude'] {
+  --brand-50: 254 241 237;
+  --brand-100: 251 223 210;
+  --brand-200: 248 198 174;
+  --brand-500: 217 118 79;   /* Claude orange */
+  --brand-600: 191 94 58;
+  --brand-700: 154 71 41;
+}
+
+[data-theme='codex'] {
+  --brand-50: 239 246 255;
+  --brand-100: 219 234 254;
+  --brand-200: 191 219 254;
+  --brand-500: 59 130 246;   /* Clean monochrome blue */
+  --brand-600: 37 99 235;
+  --brand-700: 29 78 216;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: theme('fontFamily.sans');
+  -webkit-font-smoothing: antialiased;
+  background: theme('colors.canvas');
+  color: theme('colors.ink.1');
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D9DDE5;
+  border-radius: 6px;
+  border: 2px solid theme('colors.canvas');
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #BCC3CE;
+  background-clip: padding-box;
+  border: 2px solid theme('colors.canvas');
+}
+
+/* Markdown rendering for light theme */
+.markdown {
+  font-size: 14px;
+  line-height: 1.7;
+  color: theme('colors.ink.2');
+}
+.markdown p { margin: 0.45em 0; }
+.markdown p:first-child { margin-top: 0; }
+.markdown p:last-child { margin-bottom: 0; }
+.markdown ul, .markdown ol { padding-left: 1.4em; margin: 0.4em 0; }
+.markdown li { margin: 0.15em 0; }
+.markdown code {
+  background: #F1F4F8;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.9em;
+  color: #B5365E;
+}
+.markdown pre {
+  background: #F8FAFC;
+  border: 1px solid theme('colors.line');
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow: auto;
+  margin: 0.7em 0;
+}
+.markdown pre code {
+  background: transparent;
+  padding: 0;
+  color: theme('colors.ink.2');
+  font-size: 12.5px;
+}
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 {
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+  color: theme('colors.ink.1');
+}
+.markdown h1 { font-size: 1.3em; }
+.markdown h2 { font-size: 1.15em; }
+.markdown h3 { font-size: 1.05em; }
+.markdown h4 { font-size: 1em; }
+.markdown a {
+  color: theme('colors.info.600');
+  text-decoration: none;
+  border-bottom: 1px solid theme('colors.info.100');
+}
+.markdown a:hover {
+  border-bottom-color: theme('colors.info.500');
+}
+.markdown blockquote {
+  border-left: 3px solid theme('colors.line-strong');
+  padding-left: 12px;
+  color: theme('colors.ink.4');
+  margin: 0.6em 0;
+}
+.markdown table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: 13px;
+}
+.markdown th, .markdown td {
+  border: 1px solid theme('colors.line');
+  padding: 6px 10px;
+}
+.markdown th { background: theme('colors.surface-sub'); }
+.markdown hr {
+  border: 0;
+  border-top: 1px solid theme('colors.line');
+  margin: 1.2em 0;
+}
+
+/* Radix Dialog animations */
+@keyframes overlayShow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Right-side drawer (DetailDrawer) — slides from the right edge */
+@keyframes drawerSlideIn {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+/* Centered popup (ConfirmDialog) — keyframes must preserve the -50%/-50% centering
+   so the dialog doesn't briefly snap to the lower-right while animating. */
+@keyframes popupZoomIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes fadeSwap {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+.dialog-overlay[data-state='open'] {
+  animation: overlayShow 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dialog-drawer[data-state='open'] {
+  animation: drawerSlideIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dialog-popup[data-state='open'] {
+  animation: popupZoomIn 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}

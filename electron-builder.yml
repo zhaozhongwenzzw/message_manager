@@ -1,0 +1,44 @@
+appId: com.recall.app
+productName: Recall
+copyright: Copyright © 2026
+artifactName: ${productName}-${version}-${arch}.${ext}
+asar: true
+npmRebuild: false
+directories:
+  output: dist-app
+  buildResources: src/assets/image
+
+files:
+  - out/**/*
+  - src/assets/image/icon.ico
+  - src/assets/image/icon.png
+  - package.json
+  - "!**/*.map"
+
+extraMetadata:
+  main: out/main/index.js
+
+win:
+  icon: src/assets/image/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Recall
+  artifactName: ${productName}-Setup-${version}.${ext}
+  installerIcon: src/assets/image/icon.ico
+  uninstallerIcon: src/assets/image/icon.ico
+
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}
