@@ -10,6 +10,7 @@ export type UpdaterStatus =
   | { phase: 'not-available'; info?: UpdateInfoLite; checkedAt: number }
   | { phase: 'downloading'; info: UpdateInfoLite; progress: ProgressInfo }
   | { phase: 'downloaded'; info: UpdateInfoLite }
+  | { phase: 'pending-publish'; info?: UpdateInfoLite; message: string }
   | { phase: 'error'; message: string };
 
 export type UpdateInfoLite = {
@@ -75,7 +76,26 @@ export function initUpdater(win: BrowserWindow): void {
     send();
   });
   autoUpdater.on('error', (err: Error) => {
-    state = { phase: 'error', message: err?.message ?? String(err) };
+    const msg = String(err?.message ?? err);
+    // GitHub 404 race: latest.yml says a version exists but the binary/blockmap
+    // isn't reachable yet. Happens when a draft release was just created
+    // (assets still uploading) or the maintainer hasn't published the draft.
+    // Treat this as a recoverable "wait a bit" state instead of a hard error.
+    if (/\b(404|not found)\b/i.test(msg) || /HttpError:\s*404/i.test(msg)) {
+      const lastInfo =
+        state.phase === 'available' || state.phase === 'downloading'
+          ? state.info
+          : state.phase === 'pending-publish'
+          ? state.info
+          : undefined;
+      state = {
+        phase: 'pending-publish',
+        info: lastInfo,
+        message: '新版本即将发布，对应安装包还未就绪。可能是发布者刚推上去还在传文件，请过几分钟再试。'
+      };
+    } else {
+      state = { phase: 'error', message: msg };
+    }
     send();
   });
 

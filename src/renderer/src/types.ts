@@ -43,6 +43,7 @@ export type AppConfig = {
   windowBounds?: { x?: number; y?: number; width: number; height: number };
   showStarredOnly: boolean;
   appearance: Appearance;
+  trashDir?: string;
 };
 
 export type UpdateInfoLite = {
@@ -65,4 +66,5 @@ export type UpdaterStatus =
   | { phase: 'not-available'; info?: UpdateInfoLite; checkedAt: number }
   | { phase: 'downloading'; info: UpdateInfoLite; progress: UpdateProgress }
   | { phase: 'downloaded'; info: UpdateInfoLite }
+  | { phase: 'pending-publish'; info?: UpdateInfoLite; message: string }
   | { phase: 'error'; message: string };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { CheckCircle2, Download, RefreshCw, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, Clock, Download, RefreshCw, Sparkles, X } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -224,6 +224,18 @@ function buildIndicator(status: UpdaterStatus, _theme: 'claude' | 'codex'): Indi
         heroTitle: `v${status.info.version} 已就绪`,
         heroDesc: '点击下方按钮立即重启并安装；也可以下次启动时自动安装。',
         heroCls: 'bg-brand-50 text-brand-600 ring-brand-100'
+      };
+    case 'pending-publish':
+      return {
+        icon: <Clock size={14} className="text-warn-600" />,
+        label: '待发布',
+        title: status.message,
+        cls: 'border-warn-100 bg-warn-50 text-warn-600',
+        dot: true,
+        heroIcon: <Clock size={18} />,
+        heroTitle: status.info ? `v${status.info.version} 还未就绪` : '新版本还未就绪',
+        heroDesc: status.message,
+        heroCls: 'bg-warn-50 text-warn-600 ring-warn-100'
       };
     case 'error':
       return {

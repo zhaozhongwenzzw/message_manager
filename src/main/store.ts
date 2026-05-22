@@ -1,10 +1,10 @@
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
-import { APP_DATA_DIR, CONFIG_FILE, METADATA_FILE, TRASH_DIR } from './paths';
+import { APP_DATA_DIR, CONFIG_FILE, DEFAULT_TRASH_DIR, METADATA_FILE } from './paths';
 
 export async function ensureAppDirs(): Promise<void> {
   await fs.mkdir(APP_DATA_DIR, { recursive: true });
-  await fs.mkdir(TRASH_DIR, { recursive: true });
+  await fs.mkdir(DEFAULT_TRASH_DIR, { recursive: true });
 }
 
 async function readJsonSafe<T>(file: string, fallback: T): Promise<T> {
@@ -80,6 +80,10 @@ export type AppConfig = {
   windowBounds?: { x?: number; y?: number; width: number; height: number };
   showStarredOnly: boolean;
   appearance: Appearance;
+  /** Absolute path to use for the soft-delete trash. Undefined = use the
+   *  default ~/.claude-manager/trash. Changing this does NOT move existing
+   *  items — old trashed files remain at their original location. */
+  trashDir?: string;
 };
 
 const DEFAULT_CONFIG: AppConfig = {

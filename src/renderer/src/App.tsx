@@ -26,6 +26,7 @@ export default function App(): JSX.Element {
   const [openSession, setOpenSession] = useState<SessionSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<Appearance>('system');
+  const [trashDir, setTrashDir] = useState<string | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const confirm = useConfirm();
 
@@ -74,6 +75,7 @@ export default function App(): JSX.Element {
         setTab(cfg.activeTab);
         setStarredOnly(cfg.showStarredOnly);
         setAppearance(cfg.appearance);
+        setTrashDir(cfg.trashDir);
       } catch {
         // first run
       }
@@ -89,11 +91,12 @@ export default function App(): JSX.Element {
           ...cfg,
           activeTab: tab,
           showStarredOnly: starredOnly,
-          appearance
+          appearance,
+          trashDir
         })
       )
       .catch(() => {});
-  }, [tab, starredOnly, appearance]);
+  }, [tab, starredOnly, appearance, trashDir]);
 
   const allSessions = useMemo<SessionSummary[]>(() => {
     if (tab === 'claude') return scan.claude.flatMap((p) => p.sessions);
@@ -267,6 +270,8 @@ export default function App(): JSX.Element {
         onOpenChange={setSettingsOpen}
         appearance={appearance}
         onAppearanceChange={setAppearance}
+        trashDir={trashDir}
+        onTrashDirChange={setTrashDir}
       />
     </div>
   );

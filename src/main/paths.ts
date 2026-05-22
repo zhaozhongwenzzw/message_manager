@@ -6,7 +6,9 @@ export const CLAUDE_PROJECTS_DIR = join(HOME, '.claude', 'projects');
 export const CODEX_SESSIONS_DIR = join(HOME, '.codex', 'sessions');
 export const CODEX_ARCHIVED_DIR = join(HOME, '.codex', 'archived_sessions');
 export const APP_DATA_DIR = join(HOME, '.claude-manager');
-export const TRASH_DIR = join(APP_DATA_DIR, 'trash');
+export const DEFAULT_TRASH_DIR = join(APP_DATA_DIR, 'trash');
+/** @deprecated use the trashDir resolved from config (DEFAULT_TRASH_DIR when unset). */
+export const TRASH_DIR = DEFAULT_TRASH_DIR;
 export const METADATA_FILE = join(APP_DATA_DIR, 'metadata.json');
 export const CONFIG_FILE = join(APP_DATA_DIR, 'config.json');
 

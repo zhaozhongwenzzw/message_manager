@@ -15,6 +15,10 @@ const api = {
   setConfig: (cfg: unknown) => ipcRenderer.invoke('config:set', cfg),
   openTrash: () => ipcRenderer.invoke('open:trash'),
   openAppData: () => ipcRenderer.invoke('open:app-data'),
+  revealPath: (path: string) => ipcRenderer.invoke('path:reveal', { path }),
+  pickFolder: (opts?: { defaultPath?: string; title?: string }) =>
+    ipcRenderer.invoke('dialog:pick-folder', opts ?? {}),
+  trashDefaultPath: () => ipcRenderer.invoke('trash:default-path'),
   // Updater
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
   updaterCheck: () => ipcRenderer.invoke('updater:check'),

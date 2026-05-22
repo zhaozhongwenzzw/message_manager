@@ -1,7 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Eye, EyeOff, X } from 'lucide-react';
 import clsx from 'clsx';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api } from '../api';
 import type { NormEvent, SessionSummary } from '../types';
 import EventRenderer from './EventRenderer';
@@ -10,6 +11,10 @@ type Props = {
   session: SessionSummary | null;
   onClose: () => void;
 };
+
+// Threshold below which we skip virtualization — for tiny sessions the
+// overhead and absolute-positioning quirks aren't worth it.
+const VIRTUAL_THRESHOLD = 30;
 
 export default function DetailDrawer({ session, onClose }: Props): JSX.Element {
   const [events, setEvents] = useState<NormEvent[] | null>(null);
@@ -91,23 +96,127 @@ export default function DetailDrawer({ session, onClose }: Props): JSX.Element {
               </Dialog.Close>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            {loading && <div className="py-10 text-center text-sm text-ink-5">加载中...</div>}
-            {error && (
-              <div className="rounded-xl border border-danger-100 bg-danger-50 p-4 text-sm text-danger-600">
-                {error}
-              </div>
-            )}
-            {!loading && !error && events && events.length === 0 && (
-              <div className="py-10 text-center text-sm text-ink-5">空会话</div>
-            )}
-            {!loading &&
-              !error &&
-              visibleEvents.map((evt) => <EventRenderer key={evt.index} evt={evt} />)}
-          </div>
+          <EventScroll
+            loading={loading}
+            error={error}
+            events={events}
+            visibleEvents={visibleEvents}
+            // Width change (fullscreen toggle) reflows markdown → height changes.
+            // Keying the scroll container on `fullscreen` discards old measurements
+            // cleanly so the virtualizer doesn't render stale positions.
+            widthKey={fullscreen ? 'full' : 'half'}
+          />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+function EventScroll({
+  loading,
+  error,
+  events,
+  visibleEvents,
+  widthKey
+}: {
+  loading: boolean;
+  error: string | null;
+  events: NormEvent[] | null;
+  visibleEvents: NormEvent[];
+  widthKey: string;
+}): JSX.Element {
+  if (loading) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="py-10 text-center text-sm text-ink-5">加载中...</div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="rounded-xl border border-danger-100 bg-danger-50 p-4 text-sm text-danger-600">
+          {error}
+        </div>
+      </div>
+    );
+  }
+  if (events && events.length === 0) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="py-10 text-center text-sm text-ink-5">空会话</div>
+      </div>
+    );
+  }
+  if (visibleEvents.length < VIRTUAL_THRESHOLD) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        {visibleEvents.map((evt) => (
+          <EventRenderer key={evt.index} evt={evt} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <VirtualEventList
+      key={widthKey}
+      visibleEvents={visibleEvents}
+      total={events?.length ?? 0}
+    />
+  );
+}
+
+function VirtualEventList({
+  visibleEvents
+}: {
+  visibleEvents: NormEvent[];
+  total: number;
+}): JSX.Element {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: visibleEvents.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 140,
+    overscan: 6,
+    // Use the event's own index as the stable key — survives meta filter
+    // toggling so already-measured rows don't lose their size.
+    getItemKey: (i) => visibleEvents[i].index
+  });
+
+  const items = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
+  return (
+    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+      <div
+        style={{
+          height: `${totalSize}px`,
+          width: '100%',
+          position: 'relative'
+        }}
+      >
+        {items.map((vi) => {
+          const evt = visibleEvents[vi.index];
+          return (
+            <div
+              key={vi.key}
+              data-index={vi.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${vi.start}px)`
+              }}
+            >
+              <EventRenderer evt={evt} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

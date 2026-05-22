@@ -1,6 +1,19 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { Check, Monitor, Moon, Settings as SettingsIcon, Sun, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Check,
+  ExternalLink,
+  Monitor,
+  Moon,
+  Pencil,
+  RotateCcw,
+  Settings as SettingsIcon,
+  Sun,
+  Trash2,
+  X
+} from 'lucide-react';
 import clsx from 'clsx';
+import { api } from '../api';
 import type { Appearance } from '../types';
 
 type Props = {
@@ -8,6 +21,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   appearance: Appearance;
   onAppearanceChange: (a: Appearance) => void;
+  trashDir: string | undefined;
+  onTrashDirChange: (next: string | undefined) => void;
 };
 
 const OPTIONS: Array<{
@@ -44,13 +59,50 @@ export default function SettingsDialog({
   open,
   onOpenChange,
   appearance,
-  onAppearanceChange
+  onAppearanceChange,
+  trashDir,
+  onTrashDirChange
 }: Props): JSX.Element {
+  const [defaultPath, setDefaultPath] = useState<string>('');
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    api.trashDefaultPath().then(setDefaultPath).catch(() => {});
+    setErrMsg(null);
+  }, [open]);
+
+  const effectivePath = trashDir?.trim() || defaultPath;
+  const isCustom = !!trashDir?.trim();
+
+  async function handlePick(): Promise<void> {
+    setErrMsg(null);
+    const res = await api.pickFolder({
+      defaultPath: effectivePath,
+      title: '选择回收站文件夹'
+    });
+    if (!res) return; // cancelled
+    if (res.error) {
+      setErrMsg(res.error);
+      return;
+    }
+    if (res.path) onTrashDirChange(res.path);
+  }
+
+  function handleReset(): void {
+    setErrMsg(null);
+    onTrashDirChange(undefined);
+  }
+
+  function handleOpen(): void {
+    if (effectivePath) void api.revealPath(effectivePath);
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-ink-1/40 backdrop-blur-[2px]" />
-        <Dialog.Content className="dialog-popup fixed left-1/2 top-1/2 z-50 w-[560px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-xl2 border border-line bg-surface p-5 shadow-pop outline-none">
+        <Dialog.Content className="dialog-popup fixed left-1/2 top-1/2 z-50 w-[600px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-xl2 border border-line bg-surface p-5 shadow-pop outline-none">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100">
               <SettingsIcon size={18} />
@@ -58,7 +110,7 @@ export default function SettingsDialog({
             <div className="min-w-0 flex-1">
               <Dialog.Title className="text-[15px] font-semibold text-ink-1">设置</Dialog.Title>
               <Dialog.Description className="mt-1 text-[12.5px] text-ink-4">
-                偏好会保存在 ~/.claude-manager/config.json
+                偏好保存在 ~/.claude-manager/config.json
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -71,55 +123,115 @@ export default function SettingsDialog({
             </Dialog.Close>
           </div>
 
-          <div className="mt-5">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-5">
-              外观主题
-            </div>
-            <div className="grid grid-cols-3 gap-2.5">
-              {OPTIONS.map((opt) => {
-                const active = appearance === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => onAppearanceChange(opt.value)}
-                    className={clsx(
-                      'group relative flex flex-col overflow-hidden rounded-xl2 border text-left transition',
-                      active
-                        ? 'border-brand bg-brand-50/40 ring-2 ring-brand-200'
-                        : 'border-line bg-surface-sub hover:border-line-strong'
-                    )}
-                  >
-                    <div className="px-3 pt-3">{opt.preview}</div>
-                    <div className="flex items-center gap-1.5 px-3 pb-3 pt-2">
-                      <span
-                        className={clsx(
-                          'flex items-center',
-                          active ? 'text-brand-600' : 'text-ink-5'
-                        )}
-                      >
-                        {opt.icon}
-                      </span>
-                      <span
-                        className={clsx(
-                          'text-[13px] font-semibold',
-                          active ? 'text-ink-1' : 'text-ink-2'
-                        )}
-                      >
-                        {opt.label}
-                      </span>
-                      {active && (
-                        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white">
-                          <Check size={12} strokeWidth={3} />
-                        </span>
+          <div className="mt-5 max-h-[60vh] space-y-5 overflow-y-auto pr-1">
+            {/* ── 外观主题 ───────────────────────────────────────── */}
+            <section>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-5">
+                外观主题
+              </div>
+              <div className="grid grid-cols-3 gap-2.5">
+                {OPTIONS.map((opt) => {
+                  const active = appearance === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => onAppearanceChange(opt.value)}
+                      className={clsx(
+                        'group relative flex flex-col overflow-hidden rounded-xl2 border text-left transition',
+                        active
+                          ? 'border-brand bg-brand-50/40 ring-2 ring-brand-200'
+                          : 'border-line bg-surface-sub hover:border-line-strong'
                       )}
-                    </div>
-                    <div className="-mt-1 px-3 pb-3 text-[11px] leading-snug text-ink-4">
-                      {opt.desc}
-                    </div>
+                    >
+                      <div className="px-3 pt-3">{opt.preview}</div>
+                      <div className="flex items-center gap-1.5 px-3 pb-3 pt-2">
+                        <span
+                          className={clsx(
+                            'flex items-center',
+                            active ? 'text-brand-600' : 'text-ink-5'
+                          )}
+                        >
+                          {opt.icon}
+                        </span>
+                        <span
+                          className={clsx(
+                            'text-[13px] font-semibold',
+                            active ? 'text-ink-1' : 'text-ink-2'
+                          )}
+                        >
+                          {opt.label}
+                        </span>
+                        {active && (
+                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white">
+                            <Check size={12} strokeWidth={3} />
+                          </span>
+                        )}
+                      </div>
+                      <div className="-mt-1 px-3 pb-3 text-[11px] leading-snug text-ink-4">
+                        {opt.desc}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ── 回收站路径 ───────────────────────────────────── */}
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-5">
+                  回收站路径
+                </div>
+                {isCustom && (
+                  <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-600">
+                    自定义
+                  </span>
+                )}
+              </div>
+              <div className="rounded-xl2 border border-line bg-surface-sub p-3">
+                <div className="flex items-center gap-2">
+                  <Trash2 size={14} className="shrink-0 text-ink-4" />
+                  <div
+                    className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-2"
+                    title={effectivePath}
+                  >
+                    {effectivePath || '加载中...'}
+                  </div>
+                  <button
+                    onClick={handlePick}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line bg-surface text-ink-3 transition hover:border-brand hover:text-brand-600"
+                    title="修改路径"
+                  >
+                    <Pencil size={12} />
                   </button>
-                );
-              })}
-            </div>
+                  <button
+                    onClick={handleOpen}
+                    disabled={!effectivePath}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink-1 disabled:opacity-50"
+                    title="在文件管理器中打开"
+                  >
+                    <ExternalLink size={12} />
+                  </button>
+                  {isCustom && (
+                    <button
+                      onClick={handleReset}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line bg-surface text-ink-3 transition hover:border-line-strong hover:text-ink-1"
+                      title="恢复默认"
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                  )}
+                </div>
+                {errMsg && (
+                  <div className="mt-2 rounded border border-danger-100 bg-danger-50 px-2.5 py-1.5 text-[11.5px] text-danger-600">
+                    {errMsg}
+                  </div>
+                )}
+                <div className="mt-2 text-[11px] leading-relaxed text-ink-4">
+                  之后删除的会话写入这里 · 修改不会移动旧文件 · 不能选源目录
+                </div>
+              </div>
+            </section>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

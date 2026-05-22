@@ -1,6 +1,6 @@
 {
   "name": "recall",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local desktop archive for Claude Code and Codex conversation history",
   "main": "out/main/index.js",
   "author": "local",
@@ -28,6 +28,7 @@
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@tanstack/react-virtual": "^3.13.25",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.3",
     "highlight.js": "^11.10.0",

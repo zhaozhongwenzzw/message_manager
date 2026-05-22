@@ -1,9 +1,19 @@
 import { promises as fs } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
-import { CLAUDE_PROJECTS_DIR, CODEX_ARCHIVED_DIR, CODEX_SESSIONS_DIR, HOME, TRASH_DIR } from './paths';
+import {
+  CLAUDE_PROJECTS_DIR,
+  CODEX_ARCHIVED_DIR,
+  CODEX_SESSIONS_DIR,
+  DEFAULT_TRASH_DIR,
+  HOME
+} from './paths';
 
-export async function softDelete(source: 'claude' | 'codex', srcPath: string): Promise<{ trashPath: string }> {
-  // Resolve a stable relative path under TRASH_DIR/<source>/...
+export async function softDelete(
+  source: 'claude' | 'codex',
+  srcPath: string,
+  trashRoot: string = DEFAULT_TRASH_DIR
+): Promise<{ trashPath: string }> {
+  // Resolve a stable relative path under <trashRoot>/<source>/...
   let rel: string;
   if (source === 'claude') {
     rel = relative(CLAUDE_PROJECTS_DIR, srcPath);
@@ -19,7 +29,7 @@ export async function softDelete(source: 'claude' | 'codex', srcPath: string): P
     throw new Error('refusing to delete outside expected roots: ' + srcPath);
   }
 
-  let dest = join(TRASH_DIR, source, rel);
+  let dest = join(trashRoot, source, rel);
   await fs.mkdir(dirname(dest), { recursive: true });
 
   // Collision-safe
@@ -36,7 +46,8 @@ export async function softDelete(source: 'claude' | 'codex', srcPath: string): P
 }
 
 export async function softDeleteClaudeProject(
-  projectKey: string
+  projectKey: string,
+  trashRoot: string = DEFAULT_TRASH_DIR
 ): Promise<{ trashPath: string }> {
   // Whitelist: must look like an encoded project folder, no separators
   if (!projectKey || projectKey.includes('/') || projectKey.includes('\\') || projectKey.includes('..')) {
@@ -46,7 +57,7 @@ export async function softDeleteClaudeProject(
   const stat = await fs.stat(src);
   if (!stat.isDirectory()) throw new Error('not a directory: ' + src);
 
-  let dest = join(TRASH_DIR, 'claude', '__projects', projectKey);
+  let dest = join(trashRoot, 'claude', '__projects', projectKey);
   await fs.mkdir(dirname(dest), { recursive: true });
   try {
     await fs.access(dest);

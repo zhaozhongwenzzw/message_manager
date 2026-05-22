@@ -37,6 +37,10 @@ export const api = {
   setConfig: (cfg: AppConfig) => window.api.setConfig(cfg) as Promise<void>,
   openTrash: () => window.api.openTrash() as Promise<string>,
   openAppData: () => window.api.openAppData() as Promise<string>,
+  revealPath: (path: string) => window.api.revealPath(path) as Promise<string>,
+  pickFolder: (opts?: { defaultPath?: string; title?: string }) =>
+    window.api.pickFolder(opts) as Promise<null | { path?: string; error?: string }>,
+  trashDefaultPath: () => window.api.trashDefaultPath() as Promise<string>,
   // Updater
   updaterStatus: () => window.api.updaterStatus() as Promise<UpdaterStatus>,
   updaterCheck: () => window.api.updaterCheck() as Promise<UpdaterStatus>,
