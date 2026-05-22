@@ -1,4 +1,4 @@
-import { Folder, Inbox, Calendar, Trash2 } from 'lucide-react';
+import { Folder, Inbox, Calendar, Trash2, Settings } from 'lucide-react';
 import clsx from 'clsx';
 import type { Source } from '../types';
 
@@ -11,6 +11,7 @@ type Props = {
   selectedKey: string;
   onSelect: (key: string) => void;
   onDeleteProject?: (key: string, label: string, count: number) => void;
+  onOpenSettings: () => void;
 };
 
 function avatarTone(label: string): string {
@@ -43,7 +44,8 @@ export default function ProjectSidebar({
   totalForTab,
   selectedKey,
   onSelect,
-  onDeleteProject
+  onDeleteProject,
+  onOpenSettings
 }: Props): JSX.Element {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-line bg-surface-sub">
@@ -78,6 +80,18 @@ export default function ProjectSidebar({
           <div className="px-4 py-6 text-center text-xs text-ink-5">没有发现会话</div>
         )}
       </div>
+      <div className="border-t border-line px-2 py-2">
+        <button
+          onClick={onOpenSettings}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-ink-3 transition hover:bg-surface hover:text-ink-1"
+          title="打开设置"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface text-ink-4 ring-1 ring-line">
+            <Settings size={14} />
+          </span>
+          <span className="flex-1">设置</span>
+        </button>
+      </div>
     </aside>
   );
 }
@@ -106,8 +120,8 @@ function SidebarRow({
       className={clsx(
         'group relative mb-0.5 flex w-full items-center gap-2.5 rounded-lg pl-2.5 pr-1.5 py-2 text-left text-[13px] transition cursor-pointer',
         active
-          ? 'bg-white text-ink-1 shadow-card ring-1 ring-brand-100'
-          : 'text-ink-3 hover:bg-white/70 hover:text-ink-1'
+          ? 'bg-surface text-ink-1 shadow-card ring-1 ring-brand-100'
+          : 'text-ink-3 hover:bg-surface/70 hover:text-ink-1'
       )}
       onClick={onClick}
       title={label}

@@ -5,7 +5,12 @@ import { softDelete, softDeleteClaudeProject } from './deleter';
 import { clearStar, listStars, toggleStar } from './star';
 import { readConfig, writeConfig } from './store';
 import { TRASH_DIR, APP_DATA_DIR } from './paths';
-import { checkForUpdates, getStatus, quitAndInstall } from './updater';
+
+// Lazy-loaded so dev mode (which doesn't ship electron-updater's CJS chain
+// through Electron's Node ESM loader cleanly) doesn't crash on boot.
+async function updaterModule(): Promise<typeof import('./updater')> {
+  return await import('./updater');
+}
 
 export function registerIpc(): void {
   ipcMain.handle('scan:claude', () => scanClaude());
@@ -38,9 +43,11 @@ export function registerIpc(): void {
   ipcMain.handle('open:trash', () => shell.openPath(TRASH_DIR));
   ipcMain.handle('open:app-data', () => shell.openPath(APP_DATA_DIR));
 
-  ipcMain.handle('updater:status', () => getStatus());
-  ipcMain.handle('updater:check', () => checkForUpdates({ silent: false }));
-  ipcMain.handle('updater:install', () => {
-    quitAndInstall();
+  ipcMain.handle('updater:status', async () => (await updaterModule()).getStatus());
+  ipcMain.handle('updater:check', async () =>
+    (await updaterModule()).checkForUpdates({ silent: false })
+  );
+  ipcMain.handle('updater:install', async () => {
+    (await updaterModule()).quitAndInstall();
   });
 }

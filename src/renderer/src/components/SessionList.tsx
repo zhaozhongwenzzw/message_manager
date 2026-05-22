@@ -31,7 +31,7 @@ export default function SessionList({
   return (
     <section className="flex min-w-0 flex-1 flex-col">
       <div className="flex items-center gap-3 border-b border-line bg-surface px-5 py-3">
-        <div className="flex flex-1 items-center gap-2 rounded-lg border border-line bg-surface-sub px-3 py-1.5 transition focus-within:border-brand focus-within:bg-white">
+        <div className="flex flex-1 items-center gap-2 rounded-lg border border-line bg-surface-sub px-3 py-1.5 transition focus-within:border-brand focus-within:bg-surface">
           <Search size={14} className="text-ink-5" />
           <input
             type="text"

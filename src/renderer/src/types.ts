@@ -36,10 +36,13 @@ export type NormEvent =
   | { kind: 'unknown'; raw: unknown; index: number; ts?: number }
   | { kind: 'parse_error'; rawLine: string; index: number };
 
+export type Appearance = 'light' | 'dark' | 'system';
+
 export type AppConfig = {
   activeTab: 'claude' | 'codex';
   windowBounds?: { x?: number; y?: number; width: number; height: number };
   showStarredOnly: boolean;
+  appearance: Appearance;
 };
 
 export type UpdateInfoLite = {

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
-import type { ClaudeProject, SessionSummary, Source } from './types';
+import type { Appearance, ClaudeProject, SessionSummary, Source } from './types';
 import Header from './components/Header';
 import ProjectSidebar from './components/ProjectSidebar';
 import SessionList from './components/SessionList';
 import DetailDrawer from './components/DetailDrawer';
+import SettingsDialog from './components/SettingsDialog';
 import { useConfirm } from './components/ConfirmDialog';
 
 type ScanState = {
@@ -24,12 +25,31 @@ export default function App(): JSX.Element {
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('__all__');
   const [openSession, setOpenSession] = useState<SessionSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [appearance, setAppearance] = useState<Appearance>('system');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const confirm = useConfirm();
 
   // Tab-aware theme: claude=orange, codex=blue
   useEffect(() => {
     document.documentElement.dataset.theme = tab;
   }, [tab]);
+
+  // Appearance: light / dark / system. Resolve "system" via matchMedia and
+  // re-resolve when the OS preference changes.
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = (): void => {
+      const resolved =
+        appearance === 'system' ? (mq.matches ? 'dark' : 'light') : appearance;
+      document.documentElement.dataset.appearance = resolved;
+    };
+    apply();
+    if (appearance === 'system') {
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
+    }
+    return undefined;
+  }, [appearance]);
 
   const refresh = useCallback(async () => {
     setScan((s) => ({ ...s, loading: true }));
@@ -53,6 +73,7 @@ export default function App(): JSX.Element {
         const cfg = await api.getConfig();
         setTab(cfg.activeTab);
         setStarredOnly(cfg.showStarredOnly);
+        setAppearance(cfg.appearance);
       } catch {
         // first run
       }
@@ -63,9 +84,16 @@ export default function App(): JSX.Element {
   useEffect(() => {
     api
       .getConfig()
-      .then((cfg) => api.setConfig({ ...cfg, activeTab: tab, showStarredOnly: starredOnly }))
+      .then((cfg) =>
+        api.setConfig({
+          ...cfg,
+          activeTab: tab,
+          showStarredOnly: starredOnly,
+          appearance
+        })
+      )
       .catch(() => {});
-  }, [tab, starredOnly]);
+  }, [tab, starredOnly, appearance]);
 
   const allSessions = useMemo<SessionSummary[]>(() => {
     if (tab === 'claude') return scan.claude.flatMap((p) => p.sessions);
@@ -205,7 +233,7 @@ export default function App(): JSX.Element {
       {error && (
         <div className="flex items-center gap-3 border-b border-danger-100 bg-danger-50 px-4 py-2 text-sm text-danger-600">
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="rounded px-2 py-0.5 text-xs hover:bg-white">
+          <button onClick={() => setError(null)} className="rounded px-2 py-0.5 text-xs hover:bg-surface">
             关闭
           </button>
         </div>
@@ -218,6 +246,7 @@ export default function App(): JSX.Element {
           selectedKey={selectedProjectKey}
           onSelect={setSelectedProjectKey}
           onDeleteProject={tab === 'claude' ? onDeleteProject : undefined}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
         <SessionList
           sessions={filtered}
@@ -233,6 +262,12 @@ export default function App(): JSX.Element {
         />
       </div>
       <DetailDrawer session={openSession} onClose={() => setOpenSession(null)} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        appearance={appearance}
+        onAppearanceChange={setAppearance}
+      />
     </div>
   );
 }

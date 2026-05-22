@@ -10,15 +10,12 @@ import {
   ChevronRight,
   CircleAlert,
   CheckCircle2,
-  FileCode,
   FilePlus,
   FileText,
-  Folder,
   Globe,
   Info,
   Layers,
   ListChecks,
-  MessageSquare,
   Notebook,
   Pencil,
   Search,
@@ -66,13 +63,13 @@ type Tone = 'info' | 'brand' | 'warn' | 'agent' | 'think' | 'slate' | 'danger';
 
 const toneStyles: Record<Tone, { card: string; chip: string; avatar: string; label: string }> = {
   info: {
-    card: 'border-info-100/70 bg-white',
+    card: 'border-info-100/70 bg-surface',
     chip: 'bg-info-50 text-info-600',
     avatar: 'bg-info-50 text-info-600 ring-1 ring-info-100',
     label: 'text-info-600'
   },
   brand: {
-    card: 'border-brand-100/70 bg-white',
+    card: 'border-brand-100/70 bg-surface',
     chip: 'bg-brand-50 text-brand-700',
     avatar: 'bg-brand-50 text-brand-700 ring-1 ring-brand-100',
     label: 'text-brand-700'
@@ -98,7 +95,7 @@ const toneStyles: Record<Tone, { card: string; chip: string; avatar: string; lab
   slate: {
     card: 'border-line bg-surface-sub',
     chip: 'bg-surface text-ink-4 border border-line',
-    avatar: 'bg-white text-ink-3 ring-1 ring-line',
+    avatar: 'bg-surface text-ink-3 ring-1 ring-line',
     label: 'text-ink-3'
   },
   danger: {
@@ -272,13 +269,13 @@ function ToolUse({
       label="工具调用"
       ts={ts}
       badge={
-        <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-warn-600 ring-1 ring-warn-100">
+        <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-semibold text-warn-600 ring-1 ring-warn-100">
           {name}
         </span>
       }
     >
       {summary && (
-        <div className="mb-2 truncate rounded-md bg-white px-3 py-1.5 font-mono text-[12px] text-ink-2 ring-1 ring-warn-100">
+        <div className="mb-2 truncate rounded-md bg-surface px-3 py-1.5 font-mono text-[12px] text-ink-2 ring-1 ring-warn-100">
           {summary}
         </div>
       )}
@@ -290,7 +287,7 @@ function ToolUse({
         {open ? '收起完整输入' : '查看完整输入'}
       </button>
       {open && (
-        <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-white p-3 text-[11px] text-ink-3 ring-1 ring-line">
+        <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-surface p-3 text-[11px] text-ink-3 ring-1 ring-line">
           {safeStringify(input)}
         </pre>
       )}
@@ -315,7 +312,7 @@ function SubAgentCall({ input, ts }: { input: unknown; ts?: number }): JSX.Eleme
       ts={ts}
       emphasize
       badge={
-        <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-agent-600 ring-1 ring-agent-100">
+        <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-semibold text-agent-600 ring-1 ring-agent-100">
           {subType}
         </span>
       }
@@ -325,7 +322,7 @@ function SubAgentCall({ input, ts }: { input: unknown; ts?: number }): JSX.Eleme
       )}
       {prompt && (
         <>
-          <div className="relative rounded-lg bg-white p-3 text-[12.5px] text-ink-2 ring-1 ring-agent-100">
+          <div className="relative rounded-lg bg-surface p-3 text-[12.5px] text-ink-2 ring-1 ring-agent-100">
             <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded bg-agent" />
             <div className="pl-3">
               <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-agent-600">
@@ -371,7 +368,7 @@ function ToolResult({
       label={isError ? '工具执行失败' : '工具结果'}
       ts={ts}
     >
-      <pre className="overflow-auto whitespace-pre-wrap rounded-md bg-white p-3 font-mono text-[11.5px] text-ink-2 ring-1 ring-line">
+      <pre className="overflow-auto whitespace-pre-wrap rounded-md bg-surface p-3 font-mono text-[11.5px] text-ink-2 ring-1 ring-line">
         {open ? content : truncated}
       </pre>
       {content.length > 800 && (

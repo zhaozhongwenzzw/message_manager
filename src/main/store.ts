@@ -73,16 +73,20 @@ export async function writeMetadata(m: Metadata): Promise<void> {
   await writeJsonAtomic(METADATA_FILE, m);
 }
 
+export type Appearance = 'light' | 'dark' | 'system';
+
 export type AppConfig = {
   activeTab: 'claude' | 'codex';
   windowBounds?: { x?: number; y?: number; width: number; height: number };
   showStarredOnly: boolean;
+  appearance: Appearance;
 };
 
 const DEFAULT_CONFIG: AppConfig = {
   activeTab: 'claude',
   windowBounds: { width: 1400, height: 900 },
-  showStarredOnly: false
+  showStarredOnly: false,
+  appearance: 'system'
 };
 
 export async function readConfig(): Promise<AppConfig> {

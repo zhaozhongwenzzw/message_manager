@@ -1,11 +1,10 @@
 import { app, BrowserWindow, shell, nativeImage } from 'electron';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { registerIpc } from './ipc';
 import { ensureAppDirs, readConfig, writeConfig } from './store';
-import { disposeUpdater, initUpdater } from './updater';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+// __dirname is provided by CommonJS — declare for TS strict mode.
+declare const __dirname: string;
 
 // App icon — try a few locations: in dev we read from source, in prod from resources.
 // Windows taskbar prefers .ico; PNG works for the window title bar but may look blurry on the taskbar.
@@ -51,9 +50,14 @@ async function createWindow(): Promise<void> {
     autoHideMenuBar: true,
     title: 'Recall',
     icon: appIcon,
-    backgroundColor: '#FAFAFB',
+    backgroundColor:
+      config.appearance === 'dark'
+        ? '#0C0E13'
+        : config.appearance === 'light'
+        ? '#FAFAFB'
+        : '#FAFAFB', // 'system' — renderer will swap immediately after load anyway
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
@@ -63,9 +67,12 @@ async function createWindow(): Promise<void> {
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
     // Wire updater after window is shown so it can stream status events to renderer.
-    // Skip in dev mode — autoUpdater needs a packaged build.
+    // Skip in dev mode — autoUpdater needs a packaged build, and importing
+    // electron-updater under Electron's Node ESM loader fails in dev.
     if (mainWindow && !process.env['ELECTRON_RENDERER_URL']) {
-      initUpdater(mainWindow);
+      void import('./updater').then(({ initUpdater }) => {
+        if (mainWindow) initUpdater(mainWindow);
+      });
     }
   });
 
@@ -124,6 +131,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  disposeUpdater();
+  void import('./updater').then(({ disposeUpdater }) => disposeUpdater()).catch(() => {});
   if (process.platform !== 'darwin') app.quit();
 });

@@ -89,7 +89,7 @@ function TabButton({
       onClick={onClick}
       className={clsx(
         'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
-        active ? 'bg-white text-ink-1 shadow-sm' : 'text-ink-4 hover:text-ink-2'
+        active ? 'bg-surface text-ink-1 shadow-sm' : 'text-ink-4 hover:text-ink-2'
       )}
     >
       <span className={clsx('flex items-center', active ? '' : 'opacity-70')}>{icon}</span>

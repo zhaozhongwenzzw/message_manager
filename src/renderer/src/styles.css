@@ -4,127 +4,227 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme-aware brand color (RGB triplets, used by Tailwind via rgb(var(--brand-X) / a)) */
+/* ─── Theme tokens ──────────────────────────────────────────────────────────
+   All colors expressed as RGB triplets so Tailwind can use them with
+   alpha via `rgb(var(--xxx) / <alpha-value>)`.
+   - --brand-*: theme-aware (claude=orange, codex=blue), swapped by [data-theme]
+   - everything else: appearance-aware (light vs dark), swapped by [data-appearance]
+*/
+
+/* Brand (Claude orange — default + explicit) */
 :root,
 [data-theme='claude'] {
   --brand-50: 254 241 237;
   --brand-100: 251 223 210;
   --brand-200: 248 198 174;
-  --brand-500: 217 118 79;   /* Claude orange */
+  --brand-500: 217 118 79;
   --brand-600: 191 94 58;
   --brand-700: 154 71 41;
 }
-
 [data-theme='codex'] {
   --brand-50: 239 246 255;
   --brand-100: 219 234 254;
   --brand-200: 191 219 254;
-  --brand-500: 59 130 246;   /* Clean monochrome blue */
+  --brand-500: 59 130 246;
   --brand-600: 37 99 235;
   --brand-700: 29 78 216;
+}
+
+/* ── LIGHT appearance (default) ─────────────────────────────────────────── */
+:root,
+[data-appearance='light'] {
+  --canvas: 250 250 251;
+  --surface: 255 255 255;
+  --surface-sub: 246 247 249;
+  --surface-hover: 243 244 246;
+
+  --line: 238 240 244;
+  --line-strong: 227 230 236;
+
+  --ink-1: 15 23 42;
+  --ink-2: 31 41 55;
+  --ink-3: 71 85 105;
+  --ink-4: 100 116 139;
+  --ink-5: 148 163 184;
+
+  /* Semantic palettes — 50 = subtle bg, 600 = strong text/icon */
+  --info-50: 239 246 255;
+  --info-100: 219 234 254;
+  --info-500: 59 130 246;
+  --info-600: 37 99 235;
+
+  --warn-50: 255 251 235;
+  --warn-100: 254 243 199;
+  --warn-500: 245 158 11;
+  --warn-600: 217 119 6;
+
+  --danger-50: 254 242 242;
+  --danger-100: 254 226 226;
+  --danger-500: 239 68 68;
+  --danger-600: 220 38 38;
+
+  --agent-50: 245 243 255;
+  --agent-100: 237 233 254;
+  --agent-500: 139 92 246;
+  --agent-600: 124 58 237;
+
+  --think-50: 249 250 251;
+  --think-100: 243 244 246;
+  --think-500: 156 163 175;
+
+  --shadow-card: 0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 1px 1px 0 rgba(15, 23, 42, 0.02);
+  --shadow-card-hover: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-pop: 0 12px 32px -8px rgba(15, 23, 42, 0.18), 0 4px 8px -4px rgba(15, 23, 42, 0.08);
+}
+
+/* ── DARK appearance ────────────────────────────────────────────────────── */
+[data-appearance='dark'] {
+  --canvas: 12 14 19;
+  --surface: 22 25 34;
+  --surface-sub: 17 20 27;
+  --surface-hover: 28 32 44;
+
+  --line: 38 43 58;
+  --line-strong: 54 59 74;
+
+  --ink-1: 230 233 242;
+  --ink-2: 209 213 224;
+  --ink-3: 168 174 192;
+  --ink-4: 130 137 153;
+  --ink-5: 94 102 119;
+
+  /* On dark, "50" becomes a darkened tint of the hue (still subtle bg),
+     "600" becomes a high-contrast pale variant for text/icons. */
+  --info-50: 23 42 70;
+  --info-100: 30 58 95;
+  --info-500: 96 165 250;
+  --info-600: 147 197 253;
+
+  --warn-50: 60 42 14;
+  --warn-100: 78 56 20;
+  --warn-500: 251 191 36;
+  --warn-600: 253 224 71;
+
+  --danger-50: 67 23 28;
+  --danger-100: 90 30 36;
+  --danger-500: 248 113 113;
+  --danger-600: 252 165 165;
+
+  --agent-50: 44 32 75;
+  --agent-100: 59 41 100;
+  --agent-500: 167 139 250;
+  --agent-600: 196 181 253;
+
+  --think-50: 24 27 36;
+  --think-100: 32 36 48;
+  --think-500: 156 163 175;
+
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 1px 1px 0 rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+  --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.55), 0 4px 8px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode tweaks for syntax highlighting and a few raw bg elements
+   in components that hardcode bg-white. */
+[data-appearance='dark'] .markdown pre,
+[data-appearance='dark'] .markdown code {
+  background: rgb(var(--surface-sub));
+  color: rgb(var(--ink-2));
+}
+
+[data-appearance='dark'] .hljs {
+  background: rgb(var(--surface-sub)) !important;
+  color: rgb(var(--ink-2)) !important;
 }
 
 html, body, #root {
   height: 100%;
   margin: 0;
 }
-
 body {
-  font-family: theme('fontFamily.sans');
-  -webkit-font-smoothing: antialiased;
-  background: theme('colors.canvas');
-  color: theme('colors.ink.1');
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', Roboto, sans-serif;
+  font-size: 13px;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--ink-1));
+}
+
+.markdown {
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgb(var(--ink-2));
+}
+.markdown p { margin: 0.4em 0; }
+.markdown p:first-child { margin-top: 0; }
+.markdown p:last-child { margin-bottom: 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 {
+  font-weight: 600;
+  margin: 0.8em 0 0.4em;
+  color: rgb(var(--ink-1));
+}
+.markdown h1 { font-size: 1.25em; }
+.markdown h2 { font-size: 1.15em; }
+.markdown h3 { font-size: 1.05em; }
+.markdown ul, .markdown ol { padding-left: 1.4em; margin: 0.4em 0; }
+.markdown li { margin: 0.2em 0; }
+.markdown pre {
+  background: rgb(var(--surface-sub));
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.markdown :not(pre) > code {
+  background: rgb(var(--surface-sub));
+  border: 1px solid rgb(var(--line));
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.markdown a {
+  color: rgb(var(--info-600));
+  text-decoration: underline;
+}
+.markdown blockquote {
+  border-left: 3px solid rgb(var(--line-strong));
+  padding-left: 12px;
+  color: rgb(var(--ink-3));
+  margin: 0.5em 0;
+}
+.markdown table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.markdown th, .markdown td {
+  border: 1px solid rgb(var(--line));
+  padding: 4px 8px;
+  text-align: left;
+}
+.markdown th {
+  background: rgb(var(--surface-sub));
+  font-weight: 600;
 }
 
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
 ::-webkit-scrollbar-thumb {
-  background: #D9DDE5;
-  border-radius: 6px;
-  border: 2px solid theme('colors.canvas');
-  background-clip: padding-box;
+  background: rgb(var(--line-strong));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #BCC3CE;
-  background-clip: padding-box;
-  border: 2px solid theme('colors.canvas');
+  background: rgb(var(--ink-5));
+  background-clip: content-box;
+  border: 2px solid transparent;
 }
-
-/* Markdown rendering for light theme */
-.markdown {
-  font-size: 14px;
-  line-height: 1.7;
-  color: theme('colors.ink.2');
-}
-.markdown p { margin: 0.45em 0; }
-.markdown p:first-child { margin-top: 0; }
-.markdown p:last-child { margin-bottom: 0; }
-.markdown ul, .markdown ol { padding-left: 1.4em; margin: 0.4em 0; }
-.markdown li { margin: 0.15em 0; }
-.markdown code {
-  background: #F1F4F8;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-family: theme('fontFamily.mono');
-  font-size: 0.9em;
-  color: #B5365E;
-}
-.markdown pre {
-  background: #F8FAFC;
-  border: 1px solid theme('colors.line');
-  border-radius: 8px;
-  padding: 12px 14px;
-  overflow: auto;
-  margin: 0.7em 0;
-}
-.markdown pre code {
+::-webkit-scrollbar-track {
   background: transparent;
-  padding: 0;
-  color: theme('colors.ink.2');
-  font-size: 12.5px;
-}
-.markdown h1, .markdown h2, .markdown h3, .markdown h4 {
-  font-weight: 600;
-  margin: 1em 0 0.4em;
-  color: theme('colors.ink.1');
-}
-.markdown h1 { font-size: 1.3em; }
-.markdown h2 { font-size: 1.15em; }
-.markdown h3 { font-size: 1.05em; }
-.markdown h4 { font-size: 1em; }
-.markdown a {
-  color: theme('colors.info.600');
-  text-decoration: none;
-  border-bottom: 1px solid theme('colors.info.100');
-}
-.markdown a:hover {
-  border-bottom-color: theme('colors.info.500');
-}
-.markdown blockquote {
-  border-left: 3px solid theme('colors.line-strong');
-  padding-left: 12px;
-  color: theme('colors.ink.4');
-  margin: 0.6em 0;
-}
-.markdown table {
-  border-collapse: collapse;
-  margin: 0.6em 0;
-  font-size: 13px;
-}
-.markdown th, .markdown td {
-  border: 1px solid theme('colors.line');
-  padding: 6px 10px;
-}
-.markdown th { background: theme('colors.surface-sub'); }
-.markdown hr {
-  border: 0;
-  border-top: 1px solid theme('colors.line');
-  margin: 1.2em 0;
 }
 
 /* Radix Dialog animations */

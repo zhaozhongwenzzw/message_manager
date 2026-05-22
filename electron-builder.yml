@@ -16,7 +16,7 @@ files:
   - "!**/*.map"
 
 extraMetadata:
-  main: out/main/index.js
+  main: out/main/index.cjs
 
 win:
   icon: src/assets/image/icon.ico
