@@ -1,10 +1,10 @@
 import { app, BrowserWindow, shell, nativeImage } from 'electron';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { registerIpc } from './ipc';
 import { ensureAppDirs, readConfig, writeConfig } from './store';
 
-// __dirname is provided by CommonJS — declare for TS strict mode.
-declare const __dirname: string;
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // App icon — try a few locations: in dev we read from source, in prod from resources.
 // Windows taskbar prefers .ico; PNG works for the window title bar but may look blurry on the taskbar.
@@ -57,7 +57,7 @@ async function createWindow(): Promise<void> {
         ? '#FAFAFB'
         : '#FAFAFB', // 'system' — renderer will swap immediately after load anyway
     webPreferences: {
-      preload: join(__dirname, '../preload/index.cjs'),
+      preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false

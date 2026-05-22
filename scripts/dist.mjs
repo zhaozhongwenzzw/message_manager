@@ -8,7 +8,7 @@
 // Pointing TEMP/TMP at a directory inside the project avoids the issue.
 
 import { spawn } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { argv, exit, platform } from 'node:process';
 
@@ -55,13 +55,6 @@ function run(cmd, args) {
 
 try {
   await run('npx', ['electron-vite', 'build']);
-  // Mark out/main and out/preload as CommonJS so Electron's loader treats
-  // the .cjs main bundle correctly (project package.json has "type": "module").
-  const mainPkg = resolve(projectRoot, 'out/main/package.json');
-  const preloadPkg = resolve(projectRoot, 'out/preload/package.json');
-  const src = resolve(projectRoot, 'scripts/out-main-pkg.json');
-  copyFileSync(src, mainPkg);
-  copyFileSync(src, preloadPkg);
   await run('npx', ['electron-builder', '--win', '--x64', `--publish=${publish}`]);
 } catch (err) {
   console.error('\n[dist] build failed:', err.message);
