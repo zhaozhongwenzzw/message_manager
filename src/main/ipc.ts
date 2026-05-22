@@ -5,6 +5,7 @@ import { softDelete, softDeleteClaudeProject } from './deleter';
 import { clearStar, listStars, toggleStar } from './star';
 import { readConfig, writeConfig } from './store';
 import { TRASH_DIR, APP_DATA_DIR } from './paths';
+import { checkForUpdates, getStatus, quitAndInstall } from './updater';
 
 export function registerIpc(): void {
   ipcMain.handle('scan:claude', () => scanClaude());
@@ -36,4 +37,10 @@ export function registerIpc(): void {
 
   ipcMain.handle('open:trash', () => shell.openPath(TRASH_DIR));
   ipcMain.handle('open:app-data', () => shell.openPath(APP_DATA_DIR));
+
+  ipcMain.handle('updater:status', () => getStatus());
+  ipcMain.handle('updater:check', () => checkForUpdates({ silent: false }));
+  ipcMain.handle('updater:install', () => {
+    quitAndInstall();
+  });
 }

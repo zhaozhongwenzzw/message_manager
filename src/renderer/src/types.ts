@@ -41,3 +41,25 @@ export type AppConfig = {
   windowBounds?: { x?: number; y?: number; width: number; height: number };
   showStarredOnly: boolean;
 };
+
+export type UpdateInfoLite = {
+  version: string;
+  releaseDate?: string;
+  releaseNotes?: string;
+};
+
+export type UpdateProgress = {
+  bytesPerSecond: number;
+  percent: number;
+  transferred: number;
+  total: number;
+};
+
+export type UpdaterStatus =
+  | { phase: 'idle' }
+  | { phase: 'checking' }
+  | { phase: 'available'; info: UpdateInfoLite }
+  | { phase: 'not-available'; info?: UpdateInfoLite; checkedAt: number }
+  | { phase: 'downloading'; info: UpdateInfoLite; progress: UpdateProgress }
+  | { phase: 'downloaded'; info: UpdateInfoLite }
+  | { phase: 'error'; message: string };

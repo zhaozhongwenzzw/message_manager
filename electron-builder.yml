@@ -42,3 +42,9 @@ nsis:
 
 portable:
   artifactName: ${productName}-Portable-${version}.${ext}
+
+publish:
+  - provider: github
+    owner: zhaozhongwenzzw
+    repo: message_manager
+    releaseType: release

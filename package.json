@@ -5,6 +5,10 @@
   "main": "out/main/index.js",
   "author": "local",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhaozhongwenzzw/message_manager.git"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -13,7 +17,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "icon": "node scripts/build-icon.mjs",
-    "dist:win": "electron-vite build && electron-builder --win --x64 --publish=never"
+    "dist:win": "node scripts/dist.mjs",
+    "release:win": "node scripts/dist.mjs --publish"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
@@ -24,6 +29,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.3",
     "highlight.js": "^11.10.0",
     "lucide-react": "^1.16.0",
     "react": "^18.3.1",

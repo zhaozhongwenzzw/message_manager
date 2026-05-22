@@ -5,3 +5,4 @@ dist-app
 *.log
 .DS_Store
 ~/.claude-manager
+.nsis-temp

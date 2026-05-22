@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 const api = {
   scanClaude: () => ipcRenderer.invoke('scan:claude'),
@@ -14,7 +14,16 @@ const api = {
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (cfg: unknown) => ipcRenderer.invoke('config:set', cfg),
   openTrash: () => ipcRenderer.invoke('open:trash'),
-  openAppData: () => ipcRenderer.invoke('open:app-data')
+  openAppData: () => ipcRenderer.invoke('open:app-data'),
+  // Updater
+  updaterStatus: () => ipcRenderer.invoke('updater:status'),
+  updaterCheck: () => ipcRenderer.invoke('updater:check'),
+  updaterInstall: () => ipcRenderer.invoke('updater:install'),
+  onUpdaterStatus: (cb: (status: unknown) => void) => {
+    const handler = (_e: IpcRendererEvent, status: unknown): void => cb(status);
+    ipcRenderer.on('updater:status', handler);
+    return () => ipcRenderer.removeListener('updater:status', handler);
+  }
 };
 
 contextBridge.exposeInMainWorld('api', api);

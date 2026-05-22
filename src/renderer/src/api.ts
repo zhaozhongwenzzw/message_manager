@@ -1,4 +1,11 @@
-import type { AppConfig, ClaudeProject, NormEvent, SessionSummary, Source } from './types';
+import type {
+  AppConfig,
+  ClaudeProject,
+  NormEvent,
+  SessionSummary,
+  Source,
+  UpdaterStatus
+} from './types';
 
 if (typeof window === 'undefined' || !window.api) {
   // Stub so that UI can render an error instead of crashing on undefined access.
@@ -29,5 +36,11 @@ export const api = {
   getConfig: () => window.api.getConfig() as Promise<AppConfig>,
   setConfig: (cfg: AppConfig) => window.api.setConfig(cfg) as Promise<void>,
   openTrash: () => window.api.openTrash() as Promise<string>,
-  openAppData: () => window.api.openAppData() as Promise<string>
+  openAppData: () => window.api.openAppData() as Promise<string>,
+  // Updater
+  updaterStatus: () => window.api.updaterStatus() as Promise<UpdaterStatus>,
+  updaterCheck: () => window.api.updaterCheck() as Promise<UpdaterStatus>,
+  updaterInstall: () => window.api.updaterInstall() as Promise<void>,
+  onUpdaterStatus: (cb: (s: UpdaterStatus) => void) =>
+    window.api.onUpdaterStatus((s: unknown) => cb(s as UpdaterStatus))
 };

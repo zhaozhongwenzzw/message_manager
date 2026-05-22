@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerIpc } from './ipc';
 import { ensureAppDirs, readConfig, writeConfig } from './store';
+import { disposeUpdater, initUpdater } from './updater';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -59,7 +60,14 @@ async function createWindow(): Promise<void> {
     }
   });
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show());
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show();
+    // Wire updater after window is shown so it can stream status events to renderer.
+    // Skip in dev mode — autoUpdater needs a packaged build.
+    if (mainWindow && !process.env['ELECTRON_RENDERER_URL']) {
+      initUpdater(mainWindow);
+    }
+  });
 
   // Surface renderer console + load errors to main stdout so we can debug in dev.
   mainWindow.webContents.on('console-message', (_e, level, message, line, source) => {
@@ -116,5 +124,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  disposeUpdater();
   if (process.platform !== 'darwin') app.quit();
 });

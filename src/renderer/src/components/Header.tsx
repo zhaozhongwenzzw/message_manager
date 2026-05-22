@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import type { Source } from '../types';
 import claudeIcon from '@assets/image/claude-color.svg';
 import codexIcon from '@assets/image/codex-color.svg';
+import UpdateIndicator from './UpdateIndicator';
 
 type Props = {
   tab: Source;
@@ -58,6 +59,7 @@ export default function Header({
       </nav>
 
       <div className="flex items-center gap-2">
+        <UpdateIndicator theme={tab} />
         <IconButton title="重新扫描" onClick={onRefresh} disabled={loading}>
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </IconButton>
