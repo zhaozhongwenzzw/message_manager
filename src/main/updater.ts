@@ -47,7 +47,7 @@ export function getStatus(): UpdaterStatus {
 
 export function initUpdater(win: BrowserWindow): void {
   target = win;
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
 
@@ -125,6 +125,26 @@ export async function checkForUpdates(opts: { silent?: boolean } = {}): Promise<
     state = { phase: 'error', message: err?.message ?? String(err) };
     send();
     if (!opts.silent) throw err;
+  }
+  return state;
+}
+
+export async function downloadUpdate(): Promise<UpdaterStatus> {
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (err: any) {
+    const msg = String(err?.message ?? err);
+    if (/\b(404|not found)\b/i.test(msg)) {
+      const lastInfo = state.phase === 'available' ? state.info : undefined;
+      state = {
+        phase: 'pending-publish',
+        info: lastInfo,
+        message: '安装包还未就绪。可能是发布者刚推上去文件还在传，请过几分钟再试。'
+      };
+    } else {
+      state = { phase: 'error', message: msg };
+    }
+    send();
   }
   return state;
 }

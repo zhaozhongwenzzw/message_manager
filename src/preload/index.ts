@@ -22,6 +22,7 @@ const api = {
   // Updater
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
   updaterCheck: () => ipcRenderer.invoke('updater:check'),
+  updaterDownload: () => ipcRenderer.invoke('updater:download'),
   updaterInstall: () => ipcRenderer.invoke('updater:install'),
   onUpdaterStatus: (cb: (status: unknown) => void) => {
     const handler = (_e: IpcRendererEvent, status: unknown): void => cb(status);

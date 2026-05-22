@@ -44,6 +44,7 @@ export const api = {
   // Updater
   updaterStatus: () => window.api.updaterStatus() as Promise<UpdaterStatus>,
   updaterCheck: () => window.api.updaterCheck() as Promise<UpdaterStatus>,
+  updaterDownload: () => window.api.updaterDownload() as Promise<UpdaterStatus>,
   updaterInstall: () => window.api.updaterInstall() as Promise<void>,
   onUpdaterStatus: (cb: (s: UpdaterStatus) => void) =>
     window.api.onUpdaterStatus((s: unknown) => cb(s as UpdaterStatus))

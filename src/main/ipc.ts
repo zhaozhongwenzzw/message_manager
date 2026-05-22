@@ -95,6 +95,7 @@ export function registerIpc(): void {
   ipcMain.handle('updater:check', async () =>
     (await updaterModule()).checkForUpdates({ silent: false })
   );
+  ipcMain.handle('updater:download', async () => (await updaterModule()).downloadUpdate());
   ipcMain.handle('updater:install', async () => {
     (await updaterModule()).quitAndInstall();
   });

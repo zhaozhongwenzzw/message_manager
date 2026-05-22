@@ -20,6 +20,9 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
   const [status, setStatus] = useState<UpdaterStatus>({ phase: 'idle' });
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  // Don't re-pop the dialog for a version the user already saw and dismissed.
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -34,10 +37,15 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
     };
   }, []);
 
-  // Auto-open dialog on important transitions so the user notices.
+  // Auto-open on important transitions: a new available version (one the user
+  // hasn't dismissed yet) and when a download finishes.
   useEffect(() => {
-    if (status.phase === 'downloaded') setOpen(true);
-  }, [status.phase]);
+    if (status.phase === 'downloaded') {
+      setOpen(true);
+    } else if (status.phase === 'available' && status.info.version !== dismissedVersion) {
+      setOpen(true);
+    }
+  }, [status, dismissedVersion]);
 
   async function handleCheck(): Promise<void> {
     setChecking(true);
@@ -51,14 +59,30 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
     }
   }
 
+  async function handleDownload(): Promise<void> {
+    setDownloading(true);
+    try {
+      await api.updaterDownload();
+    } catch {
+      // status will reflect error
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function handleInstall(): Promise<void> {
     await api.updaterInstall();
+  }
+
+  function handleDismiss(): void {
+    if (status.phase === 'available') setDismissedVersion(status.info.version);
+    setOpen(false);
   }
 
   const indicator = buildIndicator(status, theme);
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={(o) => (o ? setOpen(true) : handleDismiss())}>
       <Dialog.Trigger asChild>
         <button
           title={indicator.title}
@@ -151,6 +175,23 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
             >
               {checking || status.phase === 'checking' ? '检查中…' : '检查更新'}
             </button>
+            {status.phase === 'available' && (
+              <>
+                <button
+                  onClick={handleDismiss}
+                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-3 transition hover:border-line-strong hover:text-ink-1"
+                >
+                  稍后再说
+                </button>
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="rounded-lg bg-brand px-4 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
+                >
+                  {downloading ? '正在开始…' : '下载更新'}
+                </button>
+              </>
+            )}
             {status.phase === 'downloaded' && (
               <button
                 onClick={handleInstall}
@@ -194,12 +235,12 @@ function buildIndicator(status: UpdaterStatus, _theme: 'claude' | 'codex'): Indi
       return {
         icon: <Sparkles size={14} className="text-brand-600" />,
         label: `v${status.info.version}`,
-        title: `发现新版本 v${status.info.version}，自动下载中…`,
+        title: `发现新版本 v${status.info.version}　点击查看`,
         cls: 'border-brand-200 bg-brand-50 text-brand-700',
         dot: true,
         heroIcon: <Sparkles size={18} />,
         heroTitle: `发现新版本 v${status.info.version}`,
-        heroDesc: '正在后台自动下载，完成后会提示你重启安装。',
+        heroDesc: '是否下载并安装？下载完成后会提示你重启安装。',
         heroCls: 'bg-brand-50 text-brand-600 ring-brand-100'
       };
     case 'downloading':
