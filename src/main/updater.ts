@@ -99,10 +99,10 @@ export function initUpdater(win: BrowserWindow): void {
     send();
   });
 
-  // First check a few seconds after the window is ready, so the UI is responsive first.
-  setTimeout(() => {
-    void checkForUpdates({ silent: true });
-  }, 5_000);
+  // Check immediately on launch — the user wants to know right away if there's
+  // a new version. Download is still gated on explicit user confirmation
+  // (autoDownload = false above).
+  void checkForUpdates({ silent: true });
 
   // Hourly background check.
   autoCheckTimer = setInterval(() => {

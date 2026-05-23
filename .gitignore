@@ -10,3 +10,4 @@ dist-app
 !.env.example
 .nsis-temp
 .nsis-temp
+*.tsbuildinfo

@@ -38,7 +38,8 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
   }, []);
 
   // Auto-open on important transitions: a new available version (one the user
-  // hasn't dismissed yet) and when a download finishes.
+  // hasn't dismissed yet) and when a download finishes. Never auto-open on
+  // checking/not-available/idle — those are background noise.
   useEffect(() => {
     if (status.phase === 'downloaded') {
       setOpen(true);
@@ -60,14 +61,13 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
   }
 
   async function handleDownload(): Promise<void> {
+    // Fire-and-forget — autoUpdater.downloadUpdate() resolves only when the
+    // download completes (which can take minutes). Awaiting here would keep
+    // the button disabled the whole time, which is fine, but if the renderer
+    // re-mounts mid-download we'd never reset `downloading`. Status events
+    // drive the UI instead, so we just kick it off and trust the stream.
     setDownloading(true);
-    try {
-      await api.updaterDownload();
-    } catch {
-      // status will reflect error
-    } finally {
-      setDownloading(false);
-    }
+    api.updaterDownload().finally(() => setDownloading(false));
   }
 
   async function handleInstall(): Promise<void> {
@@ -181,7 +181,7 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
                   onClick={handleDismiss}
                   className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-3 transition hover:border-line-strong hover:text-ink-1"
                 >
-                  稍后再说
+                  跳过此版本
                 </button>
                 <button
                   onClick={handleDownload}
@@ -191,6 +191,15 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
                   {downloading ? '正在开始…' : '下载更新'}
                 </button>
               </>
+            )}
+            {status.phase === 'pending-publish' && status.info && (
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="rounded-lg bg-brand px-4 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
+              >
+                {downloading ? '正在开始…' : '重试下载'}
+              </button>
             )}
             {status.phase === 'downloaded' && (
               <button
@@ -240,7 +249,7 @@ function buildIndicator(status: UpdaterStatus, _theme: 'claude' | 'codex'): Indi
         dot: true,
         heroIcon: <Sparkles size={18} />,
         heroTitle: `发现新版本 v${status.info.version}`,
-        heroDesc: '是否下载并安装？下载完成后会提示你重启安装。',
+        heroDesc: '需要你确认才会开始下载。可以点击「下载更新」开始下载，或「跳过此版本」暂不更新。',
         heroCls: 'bg-brand-50 text-brand-600 ring-brand-100'
       };
     case 'downloading':
