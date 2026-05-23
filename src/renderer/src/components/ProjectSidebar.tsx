@@ -54,7 +54,7 @@ export default function ProjectSidebar({
         <span>{tab === 'claude' ? '项目' : '按月份'}</span>
         <span className="ml-auto text-ink-5">{projects.length}</span>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
+      <div className="flex-1 overflow-y-auto px-2 pt-1 pb-3">
         <SidebarRow
           icon={<Inbox size={14} />}
           label="全部"
