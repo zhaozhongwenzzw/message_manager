@@ -10,13 +10,15 @@ import EventRenderer from './EventRenderer';
 type Props = {
   session: SessionSummary | null;
   onClose: () => void;
+  jumpToEvent?: number;
+  highlightQuery?: string;
 };
 
 // Threshold below which we skip virtualization — for tiny sessions the
 // overhead and absolute-positioning quirks aren't worth it.
 const VIRTUAL_THRESHOLD = 30;
 
-export default function DetailDrawer({ session, onClose }: Props): JSX.Element {
+export default function DetailDrawer({ session, onClose, jumpToEvent, highlightQuery }: Props): JSX.Element {
   const [events, setEvents] = useState<NormEvent[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,14 @@ export default function DetailDrawer({ session, onClose }: Props): JSX.Element {
     api
       .readSession(session.path)
       .then(setEvents)
-      .catch((e: any) => setError(e?.message ?? String(e)))
+      .catch((e: any) => {
+        const msg = e?.message ?? String(e);
+        if (/ENOENT|no such file/i.test(msg)) {
+          setError('该会话文件已被删除或移动。搜索索引可能滞后，请回到主视图点刷新。');
+        } else {
+          setError(msg);
+        }
+      })
       .finally(() => setLoading(false));
   }, [session]);
 
@@ -105,6 +114,8 @@ export default function DetailDrawer({ session, onClose }: Props): JSX.Element {
             // Keying the scroll container on `fullscreen` discards old measurements
             // cleanly so the virtualizer doesn't render stale positions.
             widthKey={fullscreen ? 'full' : 'half'}
+            jumpToEvent={jumpToEvent}
+            highlightQuery={highlightQuery}
           />
         </Dialog.Content>
       </Dialog.Portal>
@@ -117,13 +128,17 @@ function EventScroll({
   error,
   events,
   visibleEvents,
-  widthKey
+  widthKey,
+  jumpToEvent,
+  highlightQuery
 }: {
   loading: boolean;
   error: string | null;
   events: NormEvent[] | null;
   visibleEvents: NormEvent[];
   widthKey: string;
+  jumpToEvent?: number;
+  highlightQuery?: string;
 }): JSX.Element {
   if (loading) {
     return (
@@ -150,11 +165,11 @@ function EventScroll({
   }
   if (visibleEvents.length < VIRTUAL_THRESHOLD) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-        {visibleEvents.map((evt) => (
-          <EventRenderer key={evt.index} evt={evt} />
-        ))}
-      </div>
+      <NonVirtualScroll
+        visibleEvents={visibleEvents}
+        jumpToEvent={jumpToEvent}
+        highlightQuery={highlightQuery}
+      />
     );
   }
   return (
@@ -162,17 +177,65 @@ function EventScroll({
       key={widthKey}
       visibleEvents={visibleEvents}
       total={events?.length ?? 0}
+      jumpToEvent={jumpToEvent}
+      highlightQuery={highlightQuery}
     />
   );
 }
 
+function NonVirtualScroll({
+  visibleEvents,
+  jumpToEvent,
+  highlightQuery
+}: {
+  visibleEvents: NormEvent[];
+  jumpToEvent?: number;
+  highlightQuery?: string;
+}): JSX.Element {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const targetRef = useRef<HTMLDivElement>(null);
+  const [hitTick, setHitTick] = useState(0);
+
+  useEffect(() => {
+    if (jumpToEvent == null) return;
+    // run after layout
+    const t = window.setTimeout(() => {
+      targetRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      setHitTick((n) => n + 1);
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [jumpToEvent, visibleEvents]);
+
+  return (
+    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+      {visibleEvents.map((evt) => {
+        const isHit = evt.index === jumpToEvent;
+        return (
+          <div
+            key={isHit ? `hit-${hitTick}` : evt.index}
+            ref={isHit ? targetRef : undefined}
+            className={isHit ? 'search-hit-target' : undefined}
+          >
+            <EventRenderer evt={evt} highlightQuery={highlightQuery} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function VirtualEventList({
-  visibleEvents
+  visibleEvents,
+  jumpToEvent,
+  highlightQuery
 }: {
   visibleEvents: NormEvent[];
   total: number;
+  jumpToEvent?: number;
+  highlightQuery?: string;
 }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [hitTick, setHitTick] = useState(0);
 
   const virtualizer = useVirtualizer({
     count: visibleEvents.length,
@@ -183,6 +246,17 @@ function VirtualEventList({
     // toggling so already-measured rows don't lose their size.
     getItemKey: (i) => visibleEvents[i].index
   });
+
+  useEffect(() => {
+    if (jumpToEvent == null) return;
+    const targetVisibleIdx = visibleEvents.findIndex((e) => e.index === jumpToEvent);
+    if (targetVisibleIdx < 0) return;
+    const t = window.setTimeout(() => {
+      virtualizer.scrollToIndex(targetVisibleIdx, { align: 'center' });
+      setHitTick((n) => n + 1);
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [jumpToEvent, visibleEvents, virtualizer]);
 
   const items = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
@@ -198,9 +272,10 @@ function VirtualEventList({
       >
         {items.map((vi) => {
           const evt = visibleEvents[vi.index];
+          const isHit = evt.index === jumpToEvent;
           return (
             <div
-              key={vi.key}
+              key={isHit ? `hit-${hitTick}` : vi.key}
               data-index={vi.index}
               ref={virtualizer.measureElement}
               style={{
@@ -210,8 +285,9 @@ function VirtualEventList({
                 width: '100%',
                 transform: `translateY(${vi.start}px)`
               }}
+              className={isHit ? 'search-hit-target' : undefined}
             >
-              <EventRenderer evt={evt} />
+              <EventRenderer evt={evt} highlightQuery={highlightQuery} />
             </div>
           );
         })}

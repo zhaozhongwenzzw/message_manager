@@ -24,6 +24,11 @@ const api = {
     ipcRenderer.invoke('trash:restore', args),
   trashPurge: (trashPath: string) => ipcRenderer.invoke('trash:purge', { trashPath }),
   trashEmpty: () => ipcRenderer.invoke('trash:empty'),
+  // Search
+  searchQuery: (args: { query: string; source?: 'claude' | 'codex' }) =>
+    ipcRenderer.invoke('search:query', args),
+  searchStatus: () => ipcRenderer.invoke('search:status'),
+  searchRebuild: () => ipcRenderer.invoke('search:rebuild'),
   // Updater
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
   updaterCheck: () => ipcRenderer.invoke('updater:check'),

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerIpc } from './ipc';
 import { ensureAppDirs, readConfig, writeConfig } from './store';
+import { initSearch, flushSearchPersist } from './search';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -121,6 +122,7 @@ app.whenReady().then(async () => {
   }
   await ensureAppDirs();
   registerIpc();
+  void initSearch().catch((err) => console.warn('[search] initSearch failed:', err));
   const iconForDock = resolveAppIcon();
   if (process.platform === 'darwin' && iconForDock) app.dock?.setIcon(iconForDock);
   await createWindow();
@@ -131,6 +133,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  void flushSearchPersist().catch(() => {});
   void import('./updater').then(({ disposeUpdater }) => disposeUpdater()).catch(() => {});
   if (process.platform !== 'darwin') app.quit();
 });

@@ -20,7 +20,7 @@ async function readJsonSafe<T>(file: string, fallback: T): Promise<T> {
 // (rename to an existing destination can EPERM if another process has it open).
 const writeChains = new Map<string, Promise<void>>();
 
-async function writeJsonAtomic(file: string, data: unknown): Promise<void> {
+export async function writeJsonAtomic(file: string, data: unknown): Promise<void> {
   await fs.mkdir(dirname(file), { recursive: true });
   const prev = writeChains.get(file) ?? Promise.resolve();
   const next = prev.catch(() => {}).then(async () => {

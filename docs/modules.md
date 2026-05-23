@@ -19,6 +19,8 @@
 | `~/.claude-manager/trash/claude/...` | Claude 软删除的会话（保留原相对路径） |
 | `~/.claude-manager/trash/claude/__projects/<key>` | 整个 Claude 项目被删除时的归档目录 |
 | `~/.claude-manager/trash/codex/...` 或 `.../archived/...` | Codex 软删除的会话 |
+| `~/.claude-manager/search-index.json` | MiniSearch 序列化的全文索引（事件级），删了会自动重建 |
+| `~/.claude-manager/search-manifest.json` | 索引清单：会话路径 → size/eventCount，用于增量索引判断 |
 
 只读源目录：`~/.claude/projects/`、`~/.codex/sessions/`、`~/.codex/archived_sessions/`。
 
@@ -69,6 +71,9 @@
 | `trash:restore` `{ trashPath, mode? }` | 把项目恢复到原位置；冲突时返回 `{ conflict: true, originalPath }` 等待 UI 给出 `overwrite` / `rename` |
 | `trash:purge` `{ trashPath }` | 从回收站彻底删除一个项目（递归） |
 | `trash:empty` | 清空回收站 `<trashRoot>/{claude,codex}/*` |
+| `search:query` `{ query, source? }` | 全文搜索：返回 `SearchHit[]`（事件级命中按会话聚合，按相关度排序）|
+| `search:status` | 当前索引状态（已索引会话数、事件总数、是否正在构建、上次构建时间）|
+| `search:rebuild` | 强制重建：先重扫 Claude/Codex，再清空索引并全量重索引 |
 | `updater:status` / `updater:check` / `updater:download` / `updater:install` | 自动更新（懒加载 `./updater`） |
 
 `updater` 模块用 `await import('./updater')` 懒加载，避免 dev 启动崩溃。
@@ -118,6 +123,16 @@
 ### `limit.ts` — 并发限制器
 12 行自实现的 `pLimit(concurrency)`，避免引入 ESM-only 的 `p-limit`。用于 scanner 限制并发 fs 读取。
 
+### `search.ts` — 全文搜索索引
+- 基于 [MiniSearch](https://lucaong.github.io/minisearch/) 的纯 JS 倒排索引，零原生依赖。
+- **分词策略**：英文 / 数字按 `\W+` 拆词；中文 / CJK 用 **bigram**（"回收站管理" → `["回收","收站","站管","管理"]`），单字也保留。`tokenize` 同时给写入和查询用。MiniSearch 配 `prefix: true` + `combineWith: 'AND'`，多关键词同时命中才算分。
+- **索引粒度**：一条 doc = 一个 `NormEvent`（`${sessionPath}#${index}` 作主键）；不索引 `meta` / `unknown` / `parse_error`；`user` / `assistant` / `thinking` 截到 2000 字，`tool_use` / `tool_result` 截到 500 字（工具输出常常是几千行日志，召回价值低）。
+- **权重**：`user`/`assistant` × 2.0，`thinking` × 1.0，`tool_use`/`tool_result` × 0.5；`projectLabel` 字段 boost 1.5。
+- **增量同步**：`syncSearchIndex(SyncInput[])` 拿当前扫描结果对比 `search-manifest.json`，按 `(path, size, projectKey, projectLabel)` 判断是否需要重索引，多余的从索引移除。`scan:claude` / `scan:codex` 处理器异步触发（不阻塞 UI 首屏）；两个 source 都至少同步过一次后才合并写索引，避免任一 source 单独触发导致另一边被清空。
+- **持久化**：debounce 5s 的 `schedulePersist()`；`window-all-closed` 时 `flushSearchPersist()` 立即落盘。schema `MANIFEST_VERSION` 不匹配时 init 阶段直接丢弃旧索引，下次 scan 自动重建。
+- **查询接口**：`search(query, { source?, limit, perSessionLimit })` 把 MiniSearch 的事件级命中按 `sessionPath` 聚合成 `SearchHit[]`，每会话保留至多 5 条命中事件 + excerpt（关键词前后 50/90 字），按 `bestScore` 降序。
+- **删除联动**：`delete:session` 处理器调 `removeSessionFromIndex(filePath)` 顺手清掉相关 docs，避免索引出现 dangling 项。
+
 ### `updater.ts` — 自动更新
 基于 `electron-updater` + GitHub Releases (`zhaozhongwenzzw/message_manager`)。
 
@@ -133,7 +148,7 @@
 
 ### `index.ts`
 用 `contextBridge.exposeInMainWorld('api', api)` 把 IPC 包装成 `window.api`：
-`scanClaude / scanCodex / readSession / deleteSession / deleteClaudeProject / listStars / toggleStar / getConfig / setConfig / openTrash / openAppData / revealPath / pickFolder / trashDefaultPath / updaterStatus / updaterCheck / updaterDownload / updaterInstall / onUpdaterStatus`。
+`scanClaude / scanCodex / readSession / deleteSession / deleteClaudeProject / listStars / toggleStar / getConfig / setConfig / openTrash / openAppData / revealPath / pickFolder / trashDefaultPath / trashList / trashRestore / trashPurge / trashEmpty / searchQuery / searchStatus / searchRebuild / updaterStatus / updaterCheck / updaterDownload / updaterInstall / onUpdaterStatus`。
 其中 `onUpdaterStatus(cb)` 是订阅模式，返回 `() => removeListener`。
 
 ### `index.d.ts`
@@ -157,7 +172,7 @@ React 入口。包一层 `ErrorBoundary` 兜底渲染错误，再包 `ConfirmPro
 对 `window.api` 的 typed 包装；若 preload bridge 缺失（路径错配）会返回 Proxy 抛友好错误而不是 `undefined`。
 
 ### `types.ts`
-渲染端共享类型：`Source`、`SessionSummary`、`ClaudeProject`、`NormEvent`、`AppConfig`、`Appearance`、`UpdaterStatus`、`UpdateInfoLite`、`UpdateProgress`。
+渲染端共享类型：`Source`、`SessionSummary`、`ClaudeProject`、`NormEvent`、`AppConfig`、`Appearance`、`UpdaterStatus`、`UpdateInfoLite`、`UpdateProgress`、`TrashEntry`、`RestoreResult`、`SearchHit`、`SearchMatch`、`SearchStatus`。
 
 ### `styles.css`
 Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/surface-sub`、`text-ink-*`、`bg-brand-*` 等品牌色调色板）、`.markdown` 排版、`.dialog-popup/.dialog-overlay/.dialog-drawer` 动画。
@@ -168,11 +183,12 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | --- | --- |
 | **`Header.tsx`** | 顶栏：Logo + Claude/Codex Tab 切换 + 计数徽章 + `<UpdateIndicator>` + 重新扫描按钮 + 打开回收站按钮。 |
 | **`ProjectSidebar.tsx`** | 左侧侧栏：「全部」+ 按项目（Claude）或按月份（Codex）分组；每行带计数；Claude 模式悬停出现「删除项目」；底部「设置」按钮。 |
-| **`SessionList.tsx`** | 中间会话列表：搜索框（预览/项目/会话 ID 模糊）、「仅看收藏」过滤、底栏会话数；用 `SessionListItem` 渲染每条。 |
+| **`SessionList.tsx`** | 中间会话列表：搜索框 + 「仅看收藏」过滤。无查询时按当前 tab 渲染 `SessionListItem`；有查询（≥ 2 字）时切换到 `SearchHitItem` 渲染主进程返回的 `SearchHit[]`，状态条显示「N 个会话命中」。 |
 | **`SessionListItem.tsx`** | 单条会话卡片：项目首字母色块头像、相对时间、预览、消息数、字节数、ID 前 8 位；悬停露出收藏/删除。 |
-| **`DetailDrawer.tsx`** | 右侧抽屉（可全屏）：调 `api.readSession(path)` 拿 `NormEvent[]`，顶栏统计 user/assistant/tool/thinking 数；元数据可隐藏；事件 >30 条时启用 `@tanstack/react-virtual` 虚拟列表。 |
+| **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`。 |
+| **`DetailDrawer.tsx`** | 右侧抽屉（可全屏）：调 `api.readSession(path)` 拿 `NormEvent[]`，顶栏统计 user/assistant/tool/thinking 数；元数据可隐藏；事件 >30 条时启用 `@tanstack/react-virtual` 虚拟列表。打开搜索结果时携带 `jumpToEvent` + `highlightQuery`：滚动到对应事件并播放 `.search-hit-target` ring 动画；同时给 user/assistant/thinking 切到纯文本 + 高亮模式（牺牲 markdown 换准确高亮），tool_result 的 `<pre>` 直接 `highlightTerms`。 |
 | **`EventRenderer.tsx`** | 把单个 `NormEvent` 渲染成统一卡片：`UserMessage`（蓝）/`AssistantMessage`（品牌色）/`Thinking`（灰斜体）/`ToolUse`（黄+图标 + 可展开完整输入）/`SubAgentCall`（紫，强调，Task 工具专用）/`ToolResult`（成功灰/失败红，>800 字可折叠）/`Meta` & `UnknownEvent`（`<details>` 收纳原始 JSON）。Markdown 走 `react-markdown` + `remark-gfm` + `rehype-highlight`。 |
-| **`SettingsDialog.tsx`** | 设置弹窗：外观主题（浅/深/跟随系统，每个选项带迷你预览）+ 回收站路径（显示当前路径、修改、打开、恢复默认；非法路径会被 main 端拒绝并展示红条）。 |
+| **`SettingsDialog.tsx`** | 设置弹窗：外观主题（浅/深/跟随系统，每个选项带迷你预览）+ 回收站路径（显示当前路径、修改、打开、恢复默认；非法路径会被 main 端拒绝并展示红条）+ **搜索索引**（显示已索引会话数 / 事件数 / 上次构建时间，构建中时显示进度 + spinner，「重建索引」按钮带 confirm）。 |
 | **`UpdateIndicator.tsx`** | Header 上的更新指示器 + 弹窗。订阅 `updater:status`，按 phase 切换图标/文案/动作按钮：`available` 显示「跳过此版本」+「下载更新」；`downloading` 显示进度条；`downloaded` 显示「立即重启并安装」；`pending-publish` 显示「重试下载」；同版本被「跳过」后下次启动不再自动弹窗（但 Header 图标常驻可手动打开）。 |
 | **`TrashView.tsx`** | 整页回收站视图（覆盖主视图区域）。顶部工具栏含返回 / 计数 / 在文件管理器中打开 / 刷新 / 清空回收站；左侧筛选「全部 / Claude / Codex / 整个项目」；中间搜索框 + 列表 + 多选状态下浮出的批量操作栏（恢复 / 彻底删除 / 取消选择）；内联 `ConflictDialog` 负责恢复冲突时三选项弹窗（覆盖 / 重命名 / 取消），批量恢复时第一次选择会自动应用到剩余项。 |
 | **`TrashListItem.tsx`** | 单条回收项卡片：左侧 checkbox + 头像色块（项目用 Folder 紫色，会话用首字母随机色）；标题 + 类型徽章（整个项目 / Claude / Codex）+ 删除时间；副信息显示预览/路径/大小/消息数；右侧 「恢复」「彻底删除」按钮。 |
@@ -200,7 +216,7 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 ## 设计原则速查
 
 - 数据写入只发生在 `~/.claude-manager/`；源目录全只读。
-- 扫描只读首行 + 首条用户消息做预览，不建索引（v1 范围）。
+- 扫描只读首行 + 首条用户消息做预览。全文搜索按需建立事件级倒排索引（MiniSearch + bigram），增量同步、可重建。
 - 任何破坏性操作（删除会话 / 删除项目 / 下载更新 / 安装更新）都必须用户在 UI 上点击确认。
 - UI 走白色简约风：白卡片、圆角、品牌色绿、浅 hover、lucide-react 图标，禁用 emoji；不同事件类型用色彩 + 图标 + 卡片层级清晰区分（用户=蓝、助手=品牌、工具=黄、子代理=紫、思考=灰、错误=红）。
 - 偏好用第三方无样式基元 (Radix UI) + Tailwind 自包装，避免 Mantine/Ant Design 这种重型 UI 库。

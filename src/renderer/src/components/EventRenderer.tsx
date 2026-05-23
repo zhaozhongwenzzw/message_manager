@@ -26,23 +26,31 @@ import {
   Wrench
 } from 'lucide-react';
 import type { NormEvent } from '../types';
+import { highlightTerms } from '../utils/highlight';
 
-type Props = { evt: NormEvent };
+type Props = { evt: NormEvent; highlightQuery?: string };
 
-export default function EventRenderer({ evt }: Props): JSX.Element {
+export default function EventRenderer({ evt, highlightQuery }: Props): JSX.Element {
   switch (evt.kind) {
     case 'user':
-      return <UserMessage text={evt.text} ts={evt.ts} />;
+      return <UserMessage text={evt.text} ts={evt.ts} highlightQuery={highlightQuery} />;
     case 'assistant':
-      return <AssistantMessage text={evt.text} ts={evt.ts} />;
+      return <AssistantMessage text={evt.text} ts={evt.ts} highlightQuery={highlightQuery} />;
     case 'thinking':
-      return <Thinking text={evt.text} ts={evt.ts} />;
+      return <Thinking text={evt.text} ts={evt.ts} highlightQuery={highlightQuery} />;
     case 'tool_use': {
       if (evt.name === 'Task') return <SubAgentCall input={evt.input} ts={evt.ts} />;
       return <ToolUse name={evt.name} input={evt.input} ts={evt.ts} />;
     }
     case 'tool_result':
-      return <ToolResult content={evt.content} isError={evt.isError} ts={evt.ts} />;
+      return (
+        <ToolResult
+          content={evt.content}
+          isError={evt.isError}
+          ts={evt.ts}
+          highlightQuery={highlightQuery}
+        />
+      );
     case 'meta':
       return <Meta raw={(evt as any).raw} />;
     case 'parse_error':
@@ -156,34 +164,43 @@ function Card({
 
 // ─── User / Assistant / Thinking ────────────────────────────────────────────────
 
-function UserMessage({ text, ts }: { text: string; ts?: number }): JSX.Element {
+function UserMessage({ text, ts, highlightQuery }: { text: string; ts?: number; highlightQuery?: string }): JSX.Element {
   return (
     <Card tone="info" icon={<User size={14} />} label="用户" ts={ts}>
-      <Body text={text} />
+      <Body text={text} highlightQuery={highlightQuery} />
     </Card>
   );
 }
 
-function AssistantMessage({ text, ts }: { text: string; ts?: number }): JSX.Element {
+function AssistantMessage({ text, ts, highlightQuery }: { text: string; ts?: number; highlightQuery?: string }): JSX.Element {
   return (
     <Card tone="brand" icon={<Sparkles size={14} />} label="助手" ts={ts}>
-      <Body text={text} />
+      <Body text={text} highlightQuery={highlightQuery} />
     </Card>
   );
 }
 
-function Thinking({ text, ts }: { text: string; ts?: number }): JSX.Element {
+function Thinking({ text, ts, highlightQuery }: { text: string; ts?: number; highlightQuery?: string }): JSX.Element {
   return (
     <Card tone="think" icon={<Brain size={14} />} label="思考过程" ts={ts}>
       <div className="italic">
-        <Body text={text} />
+        <Body text={text} highlightQuery={highlightQuery} />
       </div>
     </Card>
   );
 }
 
-function Body({ text }: { text: string }): JSX.Element {
+function Body({ text, highlightQuery }: { text: string; highlightQuery?: string }): JSX.Element {
   if (!text) return <div className="text-xs italic text-ink-5">(无文本内容)</div>;
+  // When a search query is active, prefer plain-text rendering with highlights
+  // over markdown — markdown breaks the highlight-by-string-match approach.
+  if (highlightQuery) {
+    return (
+      <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink-2">
+        {highlightTerms(text, highlightQuery)}
+      </div>
+    );
+  }
   return (
     <div className="markdown">
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
@@ -353,14 +370,17 @@ function SubAgentCall({ input, ts }: { input: unknown; ts?: number }): JSX.Eleme
 function ToolResult({
   content,
   isError,
-  ts
+  ts,
+  highlightQuery
 }: {
   content: string;
   isError?: boolean;
   ts?: number;
+  highlightQuery?: string;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const truncated = content.length > 800 ? content.slice(0, 800) + '\n\n…' : content;
+  const display = open ? content : truncated;
   return (
     <Card
       tone={isError ? 'danger' : 'slate'}
@@ -369,7 +389,7 @@ function ToolResult({
       ts={ts}
     >
       <pre className="overflow-auto whitespace-pre-wrap rounded-md bg-surface p-3 font-mono text-[11.5px] text-ink-2 ring-1 ring-line">
-        {open ? content : truncated}
+        {highlightQuery ? highlightTerms(display, highlightQuery) : display}
       </pre>
       {content.length > 800 && (
         <button

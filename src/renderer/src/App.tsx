@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { Appearance, ClaudeProject, SessionSummary, Source } from './types';
+import type { Appearance, ClaudeProject, SearchHit, SessionSummary, Source } from './types';
 import Header from './components/Header';
 import ProjectSidebar from './components/ProjectSidebar';
 import SessionList from './components/SessionList';
@@ -26,10 +26,15 @@ export default function App(): JSX.Element {
   const [starredOnly, setStarredOnly] = useState(false);
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('__all__');
   const [openSession, setOpenSession] = useState<SessionSummary | null>(null);
+  const [openJump, setOpenJump] = useState<{ eventIndex?: number; query?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<Appearance>('system');
   const [trashDir, setTrashDir] = useState<string | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const searchSeq = useRef(0);
   const confirm = useConfirm();
 
   // Tab-aware theme: claude=orange, codex=blue
@@ -121,16 +126,55 @@ export default function App(): JSX.Element {
     if (selectedProjectKey !== '__all__')
       list = list.filter((s) => s.projectKey === selectedProjectKey);
     if (starredOnly) list = list.filter((s) => scan.stars[s.path]);
-    const q = query.trim().toLowerCase();
-    if (q)
-      list = list.filter(
-        (s) =>
-          s.preview.toLowerCase().includes(q) ||
-          s.projectLabel.toLowerCase().includes(q) ||
-          s.id.toLowerCase().includes(q)
-      );
     return list;
-  }, [allSessions, selectedProjectKey, query, starredOnly, scan.stars]);
+  }, [allSessions, selectedProjectKey, starredOnly, scan.stars]);
+
+  // Full-text search: debounce 200ms, kick off when query is non-trivial.
+  // 1 ASCII char or 1 CJK char alone is too noisy — require at least 2 chars
+  // OR a multi-char query that tokenizes to something searchable.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setSearchHits(null);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
+    // Single CJK char or single ASCII char → too broad
+    if (q.length < 2) {
+      setSearchHits([]);
+      setSearchError('请输入至少 2 个字符');
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    setSearchError(null);
+    const seq = ++searchSeq.current;
+    const t = window.setTimeout(async () => {
+      try {
+        const hits = await api.searchQuery({ query: q, source: tab });
+        if (seq !== searchSeq.current) return;
+        setSearchHits(hits);
+      } catch (e: any) {
+        if (seq !== searchSeq.current) return;
+        setSearchError(`搜索失败: ${e?.message ?? String(e)}`);
+        setSearchHits([]);
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
+      }
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [query, tab]);
+
+  // Client-side post-filter on search hits: respect project selection + starred-only.
+  const filteredHits = useMemo<SearchHit[] | null>(() => {
+    if (!searchHits) return null;
+    let list = searchHits;
+    if (selectedProjectKey !== '__all__')
+      list = list.filter((h) => h.projectKey === selectedProjectKey);
+    if (starredOnly) list = list.filter((h) => scan.stars[h.sessionPath]);
+    return list;
+  }, [searchHits, selectedProjectKey, starredOnly, scan.stars]);
 
   const onDelete = useCallback(
     async (s: SessionSummary) => {
@@ -264,14 +308,28 @@ export default function App(): JSX.Element {
             onQuery={setQuery}
             starredOnly={starredOnly}
             onToggleStarredOnly={() => setStarredOnly((v) => !v)}
-            onOpen={setOpenSession}
+            onOpen={(s, jumpToEvent, hl) => {
+              setOpenSession(s);
+              setOpenJump({ eventIndex: jumpToEvent, query: hl });
+            }}
             onDelete={onDelete}
             onToggleStar={onToggleStar}
             loading={scan.loading}
+            searchHits={filteredHits}
+            searching={searching}
+            searchError={searchError}
           />
         </div>
       )}
-      <DetailDrawer session={openSession} onClose={() => setOpenSession(null)} />
+      <DetailDrawer
+        session={openSession}
+        onClose={() => {
+          setOpenSession(null);
+          setOpenJump({});
+        }}
+        jumpToEvent={openJump.eventIndex}
+        highlightQuery={openJump.query}
+      />
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

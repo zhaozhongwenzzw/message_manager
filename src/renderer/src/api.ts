@@ -3,6 +3,8 @@ import type {
   ClaudeProject,
   NormEvent,
   RestoreResult,
+  SearchHit,
+  SearchStatus,
   SessionSummary,
   Source,
   TrashEntry,
@@ -48,6 +50,12 @@ export const api = {
     window.api.trashRestore(args) as Promise<RestoreResult>,
   trashPurge: (trashPath: string) => window.api.trashPurge(trashPath) as Promise<void>,
   trashEmpty: () => window.api.trashEmpty() as Promise<void>,
+  // Search
+  searchQuery: (args: { query: string; source?: Source }) =>
+    window.api.searchQuery(args) as Promise<SearchHit[]>,
+  searchStatus: () => window.api.searchStatus() as Promise<SearchStatus>,
+  searchRebuild: () =>
+    window.api.searchRebuild() as Promise<{ added: number; durationMs: number }>,
   // Updater
   updaterStatus: () => window.api.updaterStatus() as Promise<UpdaterStatus>,
   updaterCheck: () => window.api.updaterCheck() as Promise<UpdaterStatus>,

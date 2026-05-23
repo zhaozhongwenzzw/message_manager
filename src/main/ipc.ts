@@ -7,6 +7,14 @@ import { clearStar, listStars, toggleStar } from './star';
 import { readConfig, writeConfig } from './store';
 import { emptyTrash, listTrash, purgeFromTrash, restoreFromTrash, type RestoreArgs } from './trash';
 import {
+  getSearchStatus,
+  rebuildIndex,
+  removeSessionFromIndex,
+  search as searchIndex,
+  syncSearchIndex,
+  type SyncInput
+} from './search';
+import {
   APP_DATA_DIR,
   CLAUDE_PROJECTS_DIR,
   CODEX_ARCHIVED_DIR,
@@ -27,9 +35,69 @@ async function resolveTrashDir(): Promise<string> {
   return dir;
 }
 
+// Track most recent scan output per source. When either source finishes, we
+// fire a search index sync over the *union* — otherwise scanning one source
+// would erase the other source's docs (since syncSearchIndex treats anything
+// not in the input list as removed).
+let lastClaudeSync: SyncInput[] = [];
+let lastCodexSync: SyncInput[] = [];
+let lastClaudeReady = false;
+let lastCodexReady = false;
+let syncInFlight: Promise<void> | null = null;
+
+async function scheduleSyncFromScans(
+  claudeProjects: Awaited<ReturnType<typeof scanClaude>> | null,
+  codexSessions: Awaited<ReturnType<typeof scanCodex>> | null
+): Promise<void> {
+  if (claudeProjects) {
+    lastClaudeSync = claudeProjects.flatMap((p) =>
+      p.sessions.map<SyncInput>((s) => ({
+        path: s.path,
+        source: 'claude',
+        size: s.size,
+        projectKey: s.projectKey,
+        projectLabel: s.projectLabel
+      }))
+    );
+    lastClaudeReady = true;
+  }
+  if (codexSessions) {
+    lastCodexSync = codexSessions.map<SyncInput>((s) => ({
+      path: s.path,
+      source: 'codex',
+      size: s.size,
+      projectKey: s.projectKey,
+      projectLabel: s.projectLabel
+    }));
+    lastCodexReady = true;
+  }
+  if (!lastClaudeReady || !lastCodexReady) return;
+
+  if (syncInFlight) {
+    await syncInFlight.catch(() => {});
+  }
+  syncInFlight = (async () => {
+    try {
+      await syncSearchIndex([...lastClaudeSync, ...lastCodexSync]);
+    } catch (err) {
+      console.warn('[search] sync failed:', err);
+    }
+  })();
+  await syncInFlight;
+  syncInFlight = null;
+}
+
 export function registerIpc(): void {
-  ipcMain.handle('scan:claude', () => scanClaude());
-  ipcMain.handle('scan:codex', () => scanCodex());
+  ipcMain.handle('scan:claude', async () => {
+    const projects = await scanClaude();
+    void scheduleSyncFromScans(projects, null);
+    return projects;
+  });
+  ipcMain.handle('scan:codex', async () => {
+    const sessions = await scanCodex();
+    void scheduleSyncFromScans(null, sessions);
+    return sessions;
+  });
 
   ipcMain.handle('read:session', async (_e, args: { path: string }) => {
     return readSession(args.path);
@@ -39,6 +107,7 @@ export function registerIpc(): void {
     const trash = await resolveTrashDir();
     const res = await softDelete(args.source, args.path, trash);
     await clearStar(args.path);
+    void removeSessionFromIndex(args.path);
     return res;
   });
 
@@ -100,6 +169,39 @@ export function registerIpc(): void {
     purgeFromTrash(await resolveTrashDir(), args.trashPath)
   );
   ipcMain.handle('trash:empty', async () => emptyTrash(await resolveTrashDir()));
+
+  ipcMain.handle(
+    'search:query',
+    (_e, args: { query: string; source?: 'claude' | 'codex' }) =>
+      searchIndex(args.query, { source: args.source })
+  );
+  ipcMain.handle('search:status', () => getSearchStatus());
+  ipcMain.handle('search:rebuild', async () => {
+    const [projects, codex] = await Promise.all([scanClaude(), scanCodex()]);
+    const all: SyncInput[] = [
+      ...projects.flatMap((p) =>
+        p.sessions.map<SyncInput>((s) => ({
+          path: s.path,
+          source: 'claude',
+          size: s.size,
+          projectKey: s.projectKey,
+          projectLabel: s.projectLabel
+        }))
+      ),
+      ...codex.map<SyncInput>((s) => ({
+        path: s.path,
+        source: 'codex',
+        size: s.size,
+        projectKey: s.projectKey,
+        projectLabel: s.projectLabel
+      }))
+    ];
+    lastClaudeSync = all.filter((s) => s.source === 'claude');
+    lastCodexSync = all.filter((s) => s.source === 'codex');
+    lastClaudeReady = true;
+    lastCodexReady = true;
+    return rebuildIndex(all);
+  });
 
   ipcMain.handle('updater:status', async () => (await updaterModule()).getStatus());
   ipcMain.handle('updater:check', async () =>

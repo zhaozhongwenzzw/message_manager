@@ -86,3 +86,28 @@ export type TrashEntry = {
 export type RestoreResult =
   | { ok: true; restoredPath: string }
   | { conflict: true; originalPath: string };
+
+export type SearchMatch = {
+  eventIndex: number;
+  kind: NormEvent['kind'];
+  excerpt: string;
+  score: number;
+};
+
+export type SearchHit = {
+  sessionPath: string;
+  source: Source;
+  projectKey: string;
+  projectLabel: string;
+  ts?: number;
+  matches: SearchMatch[];
+  bestScore: number;
+};
+
+export type SearchStatus = {
+  indexedSessions: number;
+  totalDocs: number;
+  lastBuildAt?: number;
+  building: boolean;
+  buildProgress?: { done: number; total: number };
+};

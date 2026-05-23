@@ -1,7 +1,8 @@
 import { Search, Star } from 'lucide-react';
 import clsx from 'clsx';
-import type { SessionSummary } from '../types';
+import type { SearchHit, SessionSummary } from '../types';
 import SessionListItem from './SessionListItem';
+import SearchHitItem from './SearchHitItem';
 
 type Props = {
   sessions: SessionSummary[];
@@ -10,10 +11,13 @@ type Props = {
   onQuery: (q: string) => void;
   starredOnly: boolean;
   onToggleStarredOnly: () => void;
-  onOpen: (s: SessionSummary) => void;
+  onOpen: (s: SessionSummary, jumpToEvent?: number, highlightQuery?: string) => void;
   onDelete: (s: SessionSummary) => void;
   onToggleStar: (s: SessionSummary) => void;
   loading: boolean;
+  searchHits: SearchHit[] | null;
+  searching: boolean;
+  searchError: string | null;
 };
 
 export default function SessionList({
@@ -26,16 +30,28 @@ export default function SessionList({
   onOpen,
   onDelete,
   onToggleStar,
-  loading
+  loading,
+  searchHits,
+  searching,
+  searchError
 }: Props): JSX.Element {
+  const inSearchMode = searchHits !== null;
+  const hits = searchHits ?? [];
+  const hitMap = new Map(sessions.map((s) => [s.path, s]));
+
+  const visibleCount = inSearchMode ? hits.length : sessions.length;
+  const placeholder = inSearchMode
+    ? '搜索会话正文 / 工具结果 / 项目'
+    : '搜索预览 / 项目 / 会话 ID';
+
   return (
     <section className="flex min-w-0 flex-1 flex-col">
       <div className="flex items-center gap-3 border-b border-line bg-surface px-5 py-3">
         <div className="flex flex-1 items-center gap-2 rounded-lg border border-line bg-surface-sub px-3 py-1.5 transition focus-within:border-brand focus-within:bg-surface">
-          <Search size={14} className="text-ink-5" />
+          <Search size={14} className={clsx('text-ink-5', searching && 'animate-pulse text-brand-500')} />
           <input
             type="text"
-            placeholder="搜索预览 / 项目 / 会话 ID"
+            placeholder={placeholder}
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             className="flex-1 bg-transparent text-[13px] text-ink-1 placeholder:text-ink-5 outline-none"
@@ -67,27 +83,77 @@ export default function SessionList({
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        {loading && sessions.length === 0 && (
+        {searchError && (
+          <div className="mb-3 rounded-lg border border-danger-100 bg-danger-50 px-3 py-2 text-[12px] text-danger-600">
+            {searchError}
+          </div>
+        )}
+        {loading && sessions.length === 0 && !inSearchMode && (
           <div className="py-16 text-center text-sm text-ink-5">扫描中...</div>
         )}
-        {!loading && sessions.length === 0 && (
+        {searching && hits.length === 0 && (
+          <div className="py-16 text-center text-sm text-ink-5">搜索中...</div>
+        )}
+        {!loading && !searching && inSearchMode && hits.length === 0 && (
+          <div className="py-16 text-center text-sm text-ink-5">没有匹配的内容</div>
+        )}
+        {!loading && !inSearchMode && sessions.length === 0 && (
           <div className="py-16 text-center text-sm text-ink-5">没有匹配的会话</div>
         )}
         <div className="space-y-2.5">
-          {sessions.map((s) => (
-            <SessionListItem
-              key={s.path}
-              session={s}
-              starred={!!stars[s.path]}
-              onOpen={() => onOpen(s)}
-              onDelete={() => onDelete(s)}
-              onToggleStar={() => onToggleStar(s)}
-            />
-          ))}
+          {inSearchMode
+            ? hits.map((h) => {
+                const sess = hitMap.get(h.sessionPath);
+                return (
+                  <SearchHitItem
+                    key={h.sessionPath}
+                    hit={h}
+                    query={query}
+                    starred={!!stars[h.sessionPath]}
+                    onOpen={(idx) => {
+                      if (sess) onOpen(sess, idx, query);
+                      else
+                        onOpen(
+                          {
+                            source: h.source,
+                            path: h.sessionPath,
+                            id: h.sessionPath.split(/[\\/]/).pop() ?? '',
+                            preview: h.matches[0]?.excerpt ?? '',
+                            timestamp: h.ts ?? 0,
+                            size: 0,
+                            messageCount: 0,
+                            projectKey: h.projectKey,
+                            projectLabel: h.projectLabel
+                          },
+                          idx,
+                          query
+                        );
+                    }}
+                    onDelete={() => {
+                      if (sess) onDelete(sess);
+                    }}
+                    onToggleStar={() => {
+                      if (sess) onToggleStar(sess);
+                    }}
+                  />
+                );
+              })
+            : sessions.map((s) => (
+                <SessionListItem
+                  key={s.path}
+                  session={s}
+                  starred={!!stars[s.path]}
+                  onOpen={() => onOpen(s)}
+                  onDelete={() => onDelete(s)}
+                  onToggleStar={() => onToggleStar(s)}
+                />
+              ))}
         </div>
       </div>
       <div className="border-t border-line bg-surface px-5 py-2 text-[11px] text-ink-5">
-        {sessions.length} 条会话
+        {inSearchMode
+          ? `${visibleCount} 个会话命中`
+          : `${visibleCount} 条会话`}
       </div>
     </section>
   );

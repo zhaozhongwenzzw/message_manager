@@ -11,6 +11,8 @@ export const DEFAULT_TRASH_DIR = join(APP_DATA_DIR, 'trash');
 export const TRASH_DIR = DEFAULT_TRASH_DIR;
 export const METADATA_FILE = join(APP_DATA_DIR, 'metadata.json');
 export const CONFIG_FILE = join(APP_DATA_DIR, 'config.json');
+export const SEARCH_INDEX_FILE = join(APP_DATA_DIR, 'search-index.json');
+export const SEARCH_MANIFEST_FILE = join(APP_DATA_DIR, 'search-manifest.json');
 
 // Claude encodes project paths like:
 //   D:\custorm\message_manager  ->  D--custorm-message-manager
