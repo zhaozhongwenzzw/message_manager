@@ -65,6 +65,10 @@
 | `path:reveal` `{ path }` | 在文件管理器中显示任意路径 |
 | `dialog:pick-folder` `{ defaultPath, title }` | 弹原生文件夹选择器（拒绝源目录） |
 | `trash:default-path` | 返回 `DEFAULT_TRASH_DIR` |
+| `trash:list` | 列举回收站内所有项目（会话 + 整个项目目录），返回 `TrashEntry[]` |
+| `trash:restore` `{ trashPath, mode? }` | 把项目恢复到原位置；冲突时返回 `{ conflict: true, originalPath }` 等待 UI 给出 `overwrite` / `rename` |
+| `trash:purge` `{ trashPath }` | 从回收站彻底删除一个项目（递归） |
+| `trash:empty` | 清空回收站 `<trashRoot>/{claude,codex}/*` |
 | `updater:status` / `updater:check` / `updater:download` / `updater:install` | 自动更新（懒加载 `./updater`） |
 
 `updater` 模块用 `await import('./updater')` 懒加载，避免 dev 启动崩溃。
@@ -104,6 +108,12 @@
 
 ### `star.ts` — 收藏管理
 基于 `store.readMetadata/writeMetadata` 的轻薄包装，模块内缓存一份 `Metadata`。提供 `listStars()` / `toggleStar(path, starred)` / `clearStar(path)`（软删除时调用，同时去除收藏）。
+
+### `trash.ts` — 回收站管理
+- `listTrash(trashRoot)`：递归扫 `<trashRoot>/{claude,codex}/`，对每个会话文件用 `scanner.quickProbe` 复用同一套预览/cwd 提取逻辑；`claude/__projects/<key>` 子树作为 `kind: 'project'` 单独枚举，统计 childCount + 总大小。返回 `TrashEntry[]`，按 `deletedAt` 倒序。
+- `restoreFromTrash(trashRoot, { trashPath, mode? })`：把 trashPath 反推回原始位置（CLAUDE_PROJECTS_DIR / CODEX_SESSIONS_DIR / CODEX_ARCHIVED_DIR / `__projects` → 项目目录）后 `fs.rename`。原位置已存在时：`mode` 未传 → 返回 `{ conflict: true, originalPath }` 给 UI；`mode='overwrite'` → 删现有再 rename；`mode='rename'` → 在文件名/目录名末尾追加 `.restored.<ISO>` 后 rename。带路径越界校验。
+- `purgeFromTrash(trashRoot, trashPath)`：彻底删除回收站里的某项；先验证 `trashPath` 必须在 `trashRoot` 内。
+- `emptyTrash(trashRoot)`：清空 `<trashRoot>/{claude,codex}/` 下所有子项，保留这两个父目录。
 
 ### `limit.ts` — 并发限制器
 12 行自实现的 `pLimit(concurrency)`，避免引入 ESM-only 的 `p-limit`。用于 scanner 限制并发 fs 读取。
@@ -164,6 +174,8 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | **`EventRenderer.tsx`** | 把单个 `NormEvent` 渲染成统一卡片：`UserMessage`（蓝）/`AssistantMessage`（品牌色）/`Thinking`（灰斜体）/`ToolUse`（黄+图标 + 可展开完整输入）/`SubAgentCall`（紫，强调，Task 工具专用）/`ToolResult`（成功灰/失败红，>800 字可折叠）/`Meta` & `UnknownEvent`（`<details>` 收纳原始 JSON）。Markdown 走 `react-markdown` + `remark-gfm` + `rehype-highlight`。 |
 | **`SettingsDialog.tsx`** | 设置弹窗：外观主题（浅/深/跟随系统，每个选项带迷你预览）+ 回收站路径（显示当前路径、修改、打开、恢复默认；非法路径会被 main 端拒绝并展示红条）。 |
 | **`UpdateIndicator.tsx`** | Header 上的更新指示器 + 弹窗。订阅 `updater:status`，按 phase 切换图标/文案/动作按钮：`available` 显示「跳过此版本」+「下载更新」；`downloading` 显示进度条；`downloaded` 显示「立即重启并安装」；`pending-publish` 显示「重试下载」；同版本被「跳过」后下次启动不再自动弹窗（但 Header 图标常驻可手动打开）。 |
+| **`TrashView.tsx`** | 整页回收站视图（覆盖主视图区域）。顶部工具栏含返回 / 计数 / 在文件管理器中打开 / 刷新 / 清空回收站；左侧筛选「全部 / Claude / Codex / 整个项目」；中间搜索框 + 列表 + 多选状态下浮出的批量操作栏（恢复 / 彻底删除 / 取消选择）；内联 `ConflictDialog` 负责恢复冲突时三选项弹窗（覆盖 / 重命名 / 取消），批量恢复时第一次选择会自动应用到剩余项。 |
+| **`TrashListItem.tsx`** | 单条回收项卡片：左侧 checkbox + 头像色块（项目用 Folder 紫色，会话用首字母随机色）；标题 + 类型徽章（整个项目 / Claude / Codex）+ 删除时间；副信息显示预览/路径/大小/消息数；右侧 「恢复」「彻底删除」按钮。 |
 | **`ConfirmDialog.tsx`** | `ConfirmProvider` + `useConfirm()`：组件树任意位置调 `await confirm({ title, description, confirmLabel, tone })` 返回 `Promise<boolean>`。tone 控制 danger（红删除按钮）/brand（绿色确认按钮）。 |
 
 ---

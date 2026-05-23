@@ -2,8 +2,10 @@ import type {
   AppConfig,
   ClaudeProject,
   NormEvent,
+  RestoreResult,
   SessionSummary,
   Source,
+  TrashEntry,
   UpdaterStatus
 } from './types';
 
@@ -41,6 +43,11 @@ export const api = {
   pickFolder: (opts?: { defaultPath?: string; title?: string }) =>
     window.api.pickFolder(opts) as Promise<null | { path?: string; error?: string }>,
   trashDefaultPath: () => window.api.trashDefaultPath() as Promise<string>,
+  trashList: () => window.api.trashList() as Promise<TrashEntry[]>,
+  trashRestore: (args: { trashPath: string; mode?: 'overwrite' | 'rename' }) =>
+    window.api.trashRestore(args) as Promise<RestoreResult>,
+  trashPurge: (trashPath: string) => window.api.trashPurge(trashPath) as Promise<void>,
+  trashEmpty: () => window.api.trashEmpty() as Promise<void>,
   // Updater
   updaterStatus: () => window.api.updaterStatus() as Promise<UpdaterStatus>,
   updaterCheck: () => window.api.updaterCheck() as Promise<UpdaterStatus>,

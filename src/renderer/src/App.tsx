@@ -6,6 +6,7 @@ import ProjectSidebar from './components/ProjectSidebar';
 import SessionList from './components/SessionList';
 import DetailDrawer from './components/DetailDrawer';
 import SettingsDialog from './components/SettingsDialog';
+import TrashView from './components/TrashView';
 import { useConfirm } from './components/ConfirmDialog';
 
 type ScanState = {
@@ -19,6 +20,7 @@ const INITIAL_SCAN: ScanState = { loading: true, claude: [], codex: [], stars: {
 
 export default function App(): JSX.Element {
   const [tab, setTab] = useState<Source>('claude');
+  const [view, setView] = useState<'main' | 'trash'>('main');
   const [scan, setScan] = useState<ScanState>(INITIAL_SCAN);
   const [query, setQuery] = useState('');
   const [starredOnly, setStarredOnly] = useState(false);
@@ -229,7 +231,8 @@ export default function App(): JSX.Element {
           setSelectedProjectKey('__all__');
         }}
         onRefresh={refresh}
-        onOpenTrash={() => api.openTrash()}
+        onToggleTrash={() => setView((v) => (v === 'trash' ? 'main' : 'trash'))}
+        view={view}
         loading={scan.loading}
         counts={{ claude: scan.claude.reduce((n, p) => n + p.sessions.length, 0), codex: scan.codex.length }}
       />
@@ -241,29 +244,33 @@ export default function App(): JSX.Element {
           </button>
         </div>
       )}
-      <div className="flex min-h-0 flex-1">
-        <ProjectSidebar
-          tab={tab}
-          projects={projects}
-          totalForTab={allSessions.length}
-          selectedKey={selectedProjectKey}
-          onSelect={setSelectedProjectKey}
-          onDeleteProject={tab === 'claude' ? onDeleteProject : undefined}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-        <SessionList
-          sessions={filtered}
-          stars={scan.stars}
-          query={query}
-          onQuery={setQuery}
-          starredOnly={starredOnly}
-          onToggleStarredOnly={() => setStarredOnly((v) => !v)}
-          onOpen={setOpenSession}
-          onDelete={onDelete}
-          onToggleStar={onToggleStar}
-          loading={scan.loading}
-        />
-      </div>
+      {view === 'trash' ? (
+        <TrashView onBack={() => setView('main')} onAfterRestore={refresh} />
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <ProjectSidebar
+            tab={tab}
+            projects={projects}
+            totalForTab={allSessions.length}
+            selectedKey={selectedProjectKey}
+            onSelect={setSelectedProjectKey}
+            onDeleteProject={tab === 'claude' ? onDeleteProject : undefined}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+          <SessionList
+            sessions={filtered}
+            stars={scan.stars}
+            query={query}
+            onQuery={setQuery}
+            starredOnly={starredOnly}
+            onToggleStarredOnly={() => setStarredOnly((v) => !v)}
+            onOpen={setOpenSession}
+            onDelete={onDelete}
+            onToggleStar={onToggleStar}
+            loading={scan.loading}
+          />
+        </div>
+      )}
       <DetailDrawer session={openSession} onClose={() => setOpenSession(null)} />
       <SettingsDialog
         open={settingsOpen}

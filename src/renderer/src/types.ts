@@ -68,3 +68,21 @@ export type UpdaterStatus =
   | { phase: 'downloaded'; info: UpdateInfoLite }
   | { phase: 'pending-publish'; info?: UpdateInfoLite; message: string }
   | { phase: 'error'; message: string };
+
+export type TrashEntry = {
+  id: string;
+  source: Source;
+  kind: 'session' | 'project';
+  trashPath: string;
+  originalPath: string;
+  originalLabel: string;
+  deletedAt: number;
+  size: number;
+  preview?: string;
+  messageCount?: number;
+  childCount?: number;
+};
+
+export type RestoreResult =
+  | { ok: true; restoredPath: string }
+  | { conflict: true; originalPath: string };

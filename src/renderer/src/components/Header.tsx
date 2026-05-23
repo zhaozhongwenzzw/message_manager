@@ -1,4 +1,4 @@
-import { RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Source } from '../types';
 import claudeIcon from '@assets/image/claude-color.svg';
@@ -9,7 +9,8 @@ type Props = {
   tab: Source;
   onTabChange: (t: Source) => void;
   onRefresh: () => void;
-  onOpenTrash: () => void;
+  onToggleTrash: () => void;
+  view: 'main' | 'trash';
   loading: boolean;
   counts: { claude: number; codex: number };
 };
@@ -18,11 +19,13 @@ export default function Header({
   tab,
   onTabChange,
   onRefresh,
-  onOpenTrash,
+  onToggleTrash,
+  view,
   loading,
   counts
 }: Props): JSX.Element {
   const activeIcon = tab === 'claude' ? claudeIcon : codexIcon;
+  const inTrash = view === 'trash';
   return (
     <header className="flex items-center justify-between border-b border-line bg-surface px-5 py-3">
       <div className="flex items-center gap-3">
@@ -48,6 +51,7 @@ export default function Header({
           icon={<img src={claudeIcon} alt="" className="h-3.5 w-3.5" draggable={false} />}
           label="Claude Code"
           count={counts.claude}
+          disabled={inTrash}
         />
         <TabButton
           active={tab === 'codex'}
@@ -55,17 +59,28 @@ export default function Header({
           icon={<img src={codexIcon} alt="" className="h-3.5 w-3.5" draggable={false} />}
           label="Codex"
           count={counts.codex}
+          disabled={inTrash}
         />
       </nav>
 
       <div className="flex items-center gap-2">
         <UpdateIndicator theme={tab} />
-        <IconButton title="重新扫描" onClick={onRefresh} disabled={loading}>
+        <IconButton title="重新扫描" onClick={onRefresh} disabled={loading || inTrash}>
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </IconButton>
-        <IconButton title="打开回收站" onClick={onOpenTrash}>
-          <Trash2 size={15} />
-        </IconButton>
+        <button
+          onClick={onToggleTrash}
+          title={inTrash ? '返回主视图' : '回收站'}
+          className={clsx(
+            'flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition',
+            inTrash
+              ? 'border-brand-200 bg-brand-50 text-brand-700'
+              : 'border-line bg-surface text-ink-3 hover:border-line-strong hover:text-ink-1'
+          )}
+        >
+          {inTrash ? <ArrowLeft size={14} /> : <Trash2 size={15} />}
+          {inTrash && <span>返回</span>}
+        </button>
       </div>
     </header>
   );
@@ -76,20 +91,24 @@ function TabButton({
   onClick,
   icon,
   label,
-  count
+  count,
+  disabled
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
   count: number;
+  disabled?: boolean;
 }): JSX.Element {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={clsx(
         'flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
-        active ? 'bg-surface text-ink-1 shadow-sm' : 'text-ink-4 hover:text-ink-2'
+        active ? 'bg-surface text-ink-1 shadow-sm' : 'text-ink-4 hover:text-ink-2',
+        disabled && 'cursor-not-allowed opacity-50'
       )}
     >
       <span className={clsx('flex items-center', active ? '' : 'opacity-70')}>{icon}</span>

@@ -5,6 +5,7 @@ import { readSession } from './reader';
 import { softDelete, softDeleteClaudeProject } from './deleter';
 import { clearStar, listStars, toggleStar } from './star';
 import { readConfig, writeConfig } from './store';
+import { emptyTrash, listTrash, purgeFromTrash, restoreFromTrash, type RestoreArgs } from './trash';
 import {
   APP_DATA_DIR,
   CLAUDE_PROJECTS_DIR,
@@ -90,6 +91,15 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle('trash:default-path', () => DEFAULT_TRASH_DIR);
+
+  ipcMain.handle('trash:list', async () => listTrash(await resolveTrashDir()));
+  ipcMain.handle('trash:restore', async (_e, args: RestoreArgs) =>
+    restoreFromTrash(await resolveTrashDir(), args)
+  );
+  ipcMain.handle('trash:purge', async (_e, args: { trashPath: string }) =>
+    purgeFromTrash(await resolveTrashDir(), args.trashPath)
+  );
+  ipcMain.handle('trash:empty', async () => emptyTrash(await resolveTrashDir()));
 
   ipcMain.handle('updater:status', async () => (await updaterModule()).getStatus());
   ipcMain.handle('updater:check', async () =>

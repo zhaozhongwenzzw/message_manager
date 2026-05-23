@@ -32,8 +32,9 @@ export type ClaudeProject = {
 const PREVIEW_LIMIT = 120;
 
 // Read just enough of a JSONL to extract the first user message and cwd.
-// Stops as soon as it finds them.
-async function quickProbe(filePath: string): Promise<{
+// Stops as soon as it finds them. Exported so the trash module can reuse the
+// same logic to build previews for soft-deleted sessions.
+export async function quickProbe(filePath: string): Promise<{
   preview: string;
   timestamp: number;
   cwd?: string;

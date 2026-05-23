@@ -19,6 +19,11 @@ const api = {
   pickFolder: (opts?: { defaultPath?: string; title?: string }) =>
     ipcRenderer.invoke('dialog:pick-folder', opts ?? {}),
   trashDefaultPath: () => ipcRenderer.invoke('trash:default-path'),
+  trashList: () => ipcRenderer.invoke('trash:list'),
+  trashRestore: (args: { trashPath: string; mode?: 'overwrite' | 'rename' }) =>
+    ipcRenderer.invoke('trash:restore', args),
+  trashPurge: (trashPath: string) => ipcRenderer.invoke('trash:purge', { trashPath }),
+  trashEmpty: () => ipcRenderer.invoke('trash:empty'),
   // Updater
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
   updaterCheck: () => ipcRenderer.invoke('updater:check'),
