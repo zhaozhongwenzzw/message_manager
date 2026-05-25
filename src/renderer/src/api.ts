@@ -1,6 +1,9 @@
 import type {
   AppConfig,
   ClaudeProject,
+  LlmConfig,
+  LlmStreamEvent,
+  LlmTestResult,
   NormEvent,
   RestoreResult,
   SearchHit,
@@ -56,6 +59,23 @@ export const api = {
   searchStatus: () => window.api.searchStatus() as Promise<SearchStatus>,
   searchRebuild: () =>
     window.api.searchRebuild() as Promise<{ added: number; durationMs: number }>,
+  // LLM
+  llmConfigGet: () => window.api.llmConfigGet() as Promise<LlmConfig>,
+  llmConfigSet: (args: Partial<LlmConfig> & { apiKey?: string }) =>
+    window.api.llmConfigSet(args) as Promise<LlmConfig>,
+  llmTestConnection: () => window.api.llmTestConnection() as Promise<LlmTestResult>,
+  llmSummarizeStart: (args: { sessionPath: string }) =>
+    window.api.llmSummarizeStart(args) as Promise<{ streamId: string }>,
+  llmSummarizeCancel: (args: { streamId: string }) =>
+    window.api.llmSummarizeCancel(args) as Promise<void>,
+  onLlmStream: (cb: (ev: LlmStreamEvent) => void) =>
+    window.api.onLlmStream((ev: unknown) => cb(ev as LlmStreamEvent)),
+  saveFile: (args: {
+    defaultPath?: string;
+    title?: string;
+    content: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }) => window.api.saveFile(args) as Promise<null | { path: string }>,
   // Updater
   updaterStatus: () => window.api.updaterStatus() as Promise<UpdaterStatus>,
   updaterCheck: () => window.api.updaterCheck() as Promise<UpdaterStatus>,

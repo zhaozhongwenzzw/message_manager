@@ -29,6 +29,26 @@ const api = {
     ipcRenderer.invoke('search:query', args),
   searchStatus: () => ipcRenderer.invoke('search:status'),
   searchRebuild: () => ipcRenderer.invoke('search:rebuild'),
+  // LLM
+  llmConfigGet: () => ipcRenderer.invoke('llm:config:get'),
+  llmConfigSet: (args: unknown) => ipcRenderer.invoke('llm:config:set', args),
+  llmTestConnection: () => ipcRenderer.invoke('llm:test-connection'),
+  llmSummarizeStart: (args: { sessionPath: string }) =>
+    ipcRenderer.invoke('llm:summarize:start', args),
+  llmSummarizeCancel: (args: { streamId: string }) =>
+    ipcRenderer.invoke('llm:summarize:cancel', args),
+  onLlmStream: (cb: (ev: unknown) => void) => {
+    const handler = (_e: IpcRendererEvent, ev: unknown): void => cb(ev);
+    ipcRenderer.on('llm:stream', handler);
+    return () => ipcRenderer.removeListener('llm:stream', handler);
+  },
+  // File save
+  saveFile: (args: {
+    defaultPath?: string;
+    title?: string;
+    content: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }) => ipcRenderer.invoke('dialog:save-file', args),
   // Updater
   updaterStatus: () => ipcRenderer.invoke('updater:status'),
   updaterCheck: () => ipcRenderer.invoke('updater:check'),

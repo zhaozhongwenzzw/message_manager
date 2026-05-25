@@ -6,6 +6,7 @@ import ProjectSidebar from './components/ProjectSidebar';
 import SessionList from './components/SessionList';
 import DetailDrawer from './components/DetailDrawer';
 import SettingsDialog from './components/SettingsDialog';
+import SummarizeDialog from './components/SummarizeDialog';
 import TrashView from './components/TrashView';
 import { useConfirm } from './components/ConfirmDialog';
 
@@ -31,6 +32,7 @@ export default function App(): JSX.Element {
   const [appearance, setAppearance] = useState<Appearance>('system');
   const [trashDir, setTrashDir] = useState<string | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [summarizeTarget, setSummarizeTarget] = useState<SessionSummary | null>(null);
   const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -314,6 +316,7 @@ export default function App(): JSX.Element {
             }}
             onDelete={onDelete}
             onToggleStar={onToggleStar}
+            onSummarize={(s) => setSummarizeTarget(s)}
             loading={scan.loading}
             searchHits={filteredHits}
             searching={searching}
@@ -337,6 +340,14 @@ export default function App(): JSX.Element {
         onAppearanceChange={setAppearance}
         trashDir={trashDir}
         onTrashDirChange={setTrashDir}
+      />
+      <SummarizeDialog
+        open={!!summarizeTarget}
+        session={summarizeTarget}
+        onOpenChange={(o) => {
+          if (!o) setSummarizeTarget(null);
+        }}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
     </div>
   );

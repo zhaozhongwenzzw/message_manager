@@ -10,6 +10,7 @@ type Props = {
   onOpen: (firstMatchIndex?: number) => void;
   onDelete: () => void;
   onToggleStar: () => void;
+  onSummarize?: () => void;
 };
 
 function formatTime(ts?: number): string {
@@ -71,7 +72,8 @@ export default function SearchHitItem({
   starred,
   onOpen,
   onDelete,
-  onToggleStar
+  onToggleStar,
+  onSummarize
 }: Props): JSX.Element {
   const top = hit.matches.slice(0, 3);
   return (
@@ -136,6 +138,18 @@ export default function SearchHitItem({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {onSummarize && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSummarize();
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-ink-5 opacity-0 transition hover:bg-brand-50 hover:text-brand-600 group-hover:opacity-100"
+            title="生成续聊简报（AI 压缩上下文）"
+          >
+            <Sparkles size={15} />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

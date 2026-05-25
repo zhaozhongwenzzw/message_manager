@@ -111,3 +111,31 @@ export type SearchStatus = {
   building: boolean;
   buildProgress?: { done: number; total: number };
 };
+
+export type LlmConfig = {
+  enabled: boolean;
+  baseUrl: string;
+  model: string;
+  hasApiKey?: boolean;
+};
+
+export type LlmTestResult =
+  | { ok: true; modelInfo?: string }
+  | { ok: false; error: string };
+
+export type LlmStreamEvent =
+  | {
+      type: 'phase';
+      streamId: string;
+      phase: 'reading' | 'preparing' | 'generating';
+      status: 'running' | 'done' | 'error';
+      meta?: Record<string, unknown>;
+    }
+  | { type: 'token'; streamId: string; delta: string }
+  | {
+      type: 'done';
+      streamId: string;
+      fullText: string;
+      usage?: { inputTokens?: number; outputTokens?: number };
+    }
+  | { type: 'error'; streamId: string; message: string };

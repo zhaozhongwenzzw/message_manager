@@ -13,6 +13,7 @@ export const METADATA_FILE = join(APP_DATA_DIR, 'metadata.json');
 export const CONFIG_FILE = join(APP_DATA_DIR, 'config.json');
 export const SEARCH_INDEX_FILE = join(APP_DATA_DIR, 'search-index.json');
 export const SEARCH_MANIFEST_FILE = join(APP_DATA_DIR, 'search-manifest.json');
+export const LLM_KEY_FILE = join(APP_DATA_DIR, 'llm-key.enc');
 
 // Claude encodes project paths like:
 //   D:\custorm\message_manager  ->  D--custorm-message-manager

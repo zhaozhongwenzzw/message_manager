@@ -21,6 +21,7 @@
 | `~/.claude-manager/trash/codex/...` 或 `.../archived/...` | Codex 软删除的会话 |
 | `~/.claude-manager/search-index.json` | MiniSearch 序列化的全文索引（事件级），删了会自动重建 |
 | `~/.claude-manager/search-manifest.json` | 索引清单：会话路径 → size/eventCount，用于增量索引判断 |
+| `~/.claude-manager/llm-key.enc` | AI 助手 API Key（safeStorage 加密；仅本机可解） |
 
 只读源目录：`~/.claude/projects/`、`~/.codex/sessions/`、`~/.codex/archived_sessions/`。
 
@@ -74,6 +75,12 @@
 | `search:query` `{ query, source? }` | 全文搜索：返回 `SearchHit[]`（事件级命中按会话聚合，按相关度排序）|
 | `search:status` | 当前索引状态（已索引会话数、事件总数、是否正在构建、上次构建时间）|
 | `search:rebuild` | 强制重建：先重扫 Claude/Codex，再清空索引并全量重索引 |
+| `llm:config:get` | 返回 `LlmConfig`（含 `hasApiKey: boolean`，**不返回 key 明文**） |
+| `llm:config:set` `Partial<LlmConfig> & { apiKey? }` | 更新 LLM 配置；`apiKey` 非空时调 safeStorage 加密落盘，空串视为清除 |
+| `llm:test-connection` | 用当前 config 对 `/chat/completions` 发一次 max_tokens=1 ping，返回 `{ ok, modelInfo? } \| { ok: false, error }` |
+| `llm:summarize:start` `{ sessionPath }` | 起一个流式压缩任务，返回 `{ streamId }`；事件经 `llm:stream` 推送 |
+| `llm:summarize:cancel` `{ streamId }` | 调对应 AbortController 取消请求 |
+| `dialog:save-file` `{ defaultPath, title, content, filters? }` | 弹原生保存对话框 + 写文件，返回 `{ path }` 或 `null` |
 | `updater:status` / `updater:check` / `updater:download` / `updater:install` | 自动更新（懒加载 `./updater`） |
 
 `updater` 模块用 `await import('./updater')` 懒加载，避免 dev 启动崩溃。
@@ -133,6 +140,19 @@
 - **查询接口**：`search(query, { source?, limit, perSessionLimit })` 把 MiniSearch 的事件级命中按 `sessionPath` 聚合成 `SearchHit[]`，每会话保留至多 5 条命中事件 + excerpt（关键词前后 50/90 字），按 `bestScore` 降序。
 - **删除联动**：`delete:session` 处理器调 `removeSessionFromIndex(filePath)` 顺手清掉相关 docs，避免索引出现 dangling 项。
 
+### `llm.ts` — AI 助手（续聊简报）
+- **目标**：把一条会话压缩成 800-1500 token 的 Markdown 简报，让用户粘到其他 LLM 接着干。
+- **OpenAI 兼容接口**：用户在设置里填 `baseUrl` + `model` + API Key，支持 OpenAI / DeepSeek / Moonshot / Ollama 等任何走 `/v1/chat/completions` SSE 协议的端点。
+- **API Key 安全**：通过 `safeStorage.encryptString` 加密落盘到 `~/.claude-manager/llm-key.enc`，调 OS 密钥链（Windows DPAPI / macOS Keychain / Linux libsecret）。渲染端**永远拿不到明文**，所有网络请求都在主进程发起。
+- **三阶段 agent 视觉**：
+  1. `reading` — `readSession()` 拿 `NormEvent[]`
+  2. `preparing` — `eventsToPrompt()` 机械整理成纯文本（meta / unknown / parse_error 全跳；tool_use 折成一行摘要；tool_result 截到 400 字；user/assistant/thinking 截到 4000/4000/1000 字）
+  3. `generating` — fetch SSE 流，逐 delta 通过 `webContents.send('llm:stream', ...)` 推渲染端
+  > v0.3 只调一次 LLM，视觉上是 3 步；真正拆多 agent 留给 v0.4+。
+- **上下文超长**：prompt 估算 token > 上下文窗口 70% 时**截尾保留最近内容**，并在 phase meta 里带 `truncated: true` 提示 UI 显示。默认窗口 128k。
+- **取消**：每个任务对应一个 `AbortController`，关弹窗 / 点取消时 `controller.abort()`。
+- **错误**：HTTP 非 2xx 时把响应前 500 字塞进 error event，便于排查（典型场景：baseUrl 拼错、key 失效、model 不存在）。
+
 ### `updater.ts` — 自动更新
 基于 `electron-updater` + GitHub Releases (`zhaozhongwenzzw/message_manager`)。
 
@@ -148,8 +168,8 @@
 
 ### `index.ts`
 用 `contextBridge.exposeInMainWorld('api', api)` 把 IPC 包装成 `window.api`：
-`scanClaude / scanCodex / readSession / deleteSession / deleteClaudeProject / listStars / toggleStar / getConfig / setConfig / openTrash / openAppData / revealPath / pickFolder / trashDefaultPath / trashList / trashRestore / trashPurge / trashEmpty / searchQuery / searchStatus / searchRebuild / updaterStatus / updaterCheck / updaterDownload / updaterInstall / onUpdaterStatus`。
-其中 `onUpdaterStatus(cb)` 是订阅模式，返回 `() => removeListener`。
+`scanClaude / scanCodex / readSession / deleteSession / deleteClaudeProject / listStars / toggleStar / getConfig / setConfig / openTrash / openAppData / revealPath / pickFolder / trashDefaultPath / trashList / trashRestore / trashPurge / trashEmpty / searchQuery / searchStatus / searchRebuild / llmConfigGet / llmConfigSet / llmTestConnection / llmSummarizeStart / llmSummarizeCancel / onLlmStream / saveFile / updaterStatus / updaterCheck / updaterDownload / updaterInstall / onUpdaterStatus`。
+其中 `onUpdaterStatus(cb)` / `onLlmStream(cb)` 是订阅模式，返回 `() => removeListener`。
 
 ### `index.d.ts`
 仅声明 `window.api` 的全局类型，让渲染端 TS 能识别。
@@ -172,7 +192,7 @@ React 入口。包一层 `ErrorBoundary` 兜底渲染错误，再包 `ConfirmPro
 对 `window.api` 的 typed 包装；若 preload bridge 缺失（路径错配）会返回 Proxy 抛友好错误而不是 `undefined`。
 
 ### `types.ts`
-渲染端共享类型：`Source`、`SessionSummary`、`ClaudeProject`、`NormEvent`、`AppConfig`、`Appearance`、`UpdaterStatus`、`UpdateInfoLite`、`UpdateProgress`、`TrashEntry`、`RestoreResult`、`SearchHit`、`SearchMatch`、`SearchStatus`。
+渲染端共享类型：`Source`、`SessionSummary`、`ClaudeProject`、`NormEvent`、`AppConfig`、`Appearance`、`UpdaterStatus`、`UpdateInfoLite`、`UpdateProgress`、`TrashEntry`、`RestoreResult`、`SearchHit`、`SearchMatch`、`SearchStatus`、`LlmConfig`、`LlmTestResult`、`LlmStreamEvent`。
 
 ### `styles.css`
 Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/surface-sub`、`text-ink-*`、`bg-brand-*` 等品牌色调色板）、`.markdown` 排版、`.dialog-popup/.dialog-overlay/.dialog-drawer` 动画。
@@ -184,11 +204,12 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | **`Header.tsx`** | 顶栏：Logo + Claude/Codex Tab 切换 + 计数徽章 + `<UpdateIndicator>` + 重新扫描按钮 + 打开回收站按钮。 |
 | **`ProjectSidebar.tsx`** | 左侧侧栏：「全部」+ 按项目（Claude）或按月份（Codex）分组；每行带计数；Claude 模式悬停出现「删除项目」；底部「设置」按钮。 |
 | **`SessionList.tsx`** | 中间会话列表：搜索框 + 「仅看收藏」过滤。无查询时按当前 tab 渲染 `SessionListItem`；有查询（≥ 2 字）时切换到 `SearchHitItem` 渲染主进程返回的 `SearchHit[]`，状态条显示「N 个会话命中」。 |
-| **`SessionListItem.tsx`** | 单条会话卡片：项目首字母色块头像、相对时间、预览、消息数、字节数、ID 前 8 位；悬停露出收藏/删除。 |
-| **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`。 |
+| **`SessionListItem.tsx`** | 单条会话卡片：项目首字母色块头像、相对时间、预览、消息数、字节数、ID 前 8 位；悬停露出**续聊简报（Sparkles）/ 收藏 / 删除**三个按钮。 |
+| **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`；悬停同样有续聊简报按钮。 |
 | **`DetailDrawer.tsx`** | 右侧抽屉（可全屏）：调 `api.readSession(path)` 拿 `NormEvent[]`，顶栏统计 user/assistant/tool/thinking 数；元数据可隐藏；事件 >30 条时启用 `@tanstack/react-virtual` 虚拟列表。打开搜索结果时携带 `jumpToEvent` + `highlightQuery`：滚动到对应事件并播放 `.search-hit-target` ring 动画；同时给 user/assistant/thinking 切到纯文本 + 高亮模式（牺牲 markdown 换准确高亮），tool_result 的 `<pre>` 直接 `highlightTerms`。 |
 | **`EventRenderer.tsx`** | 把单个 `NormEvent` 渲染成统一卡片：`UserMessage`（蓝）/`AssistantMessage`（品牌色）/`Thinking`（灰斜体）/`ToolUse`（黄+图标 + 可展开完整输入）/`SubAgentCall`（紫，强调，Task 工具专用）/`ToolResult`（成功灰/失败红，>800 字可折叠）/`Meta` & `UnknownEvent`（`<details>` 收纳原始 JSON）。Markdown 走 `react-markdown` + `remark-gfm` + `rehype-highlight`。 |
-| **`SettingsDialog.tsx`** | 设置弹窗：外观主题（浅/深/跟随系统，每个选项带迷你预览）+ 回收站路径（显示当前路径、修改、打开、恢复默认；非法路径会被 main 端拒绝并展示红条）+ **搜索索引**（显示已索引会话数 / 事件数 / 上次构建时间，构建中时显示进度 + spinner，「重建索引」按钮带 confirm）。 |
+| **`SettingsDialog.tsx`** | 设置弹窗：外观主题（浅/深/跟随系统，每个选项带迷你预览）+ 回收站路径（显示当前路径、修改、打开、恢复默认；非法路径会被 main 端拒绝并展示红条）+ **搜索索引**（显示已索引会话数 / 事件数 / 上次构建时间，构建中时显示进度 + spinner，「重建索引」按钮带 confirm）+ **AI 助手**（启用 toggle、Base URL、Model、API Key 输入/掩码显示/清除、测试连接按钮 + 结果横条；key 通过 safeStorage 加密）。 |
+| **`SummarizeDialog.tsx`** | AI 续聊简报弹窗。打开时拉 `llmConfigGet`，未配置则提示跳设置；否则调 `llm:summarize:start` 拿 streamId，订阅 `llm:stream` 累积事件。顶部 3 步时间线（读取 / 整理 / 生成）每步带耗时 + meta（事件数、prompt token 数 / 是否截断、模型名）；中部纯文本 pre 流式输出 + 闪烁光标；底部按钮：取消（运行中）/ 重新生成 / 保存为 .md（走原生 `dialog:save-file`）/ 复制（带 1.5s 已复制提示）。关闭即调 cancel 阻止扣费。 |
 | **`UpdateIndicator.tsx`** | Header 上的更新指示器 + 弹窗。订阅 `updater:status`，按 phase 切换图标/文案/动作按钮：`available` 显示「跳过此版本」+「下载更新」；`downloading` 显示进度条；`downloaded` 显示「立即重启并安装」；`pending-publish` 显示「重试下载」；同版本被「跳过」后下次启动不再自动弹窗（但 Header 图标常驻可手动打开）。 |
 | **`TrashView.tsx`** | 整页回收站视图（覆盖主视图区域）。顶部工具栏含返回 / 计数 / 在文件管理器中打开 / 刷新 / 清空回收站；左侧筛选「全部 / Claude / Codex / 整个项目」；中间搜索框 + 列表 + 多选状态下浮出的批量操作栏（恢复 / 彻底删除 / 取消选择）；内联 `ConflictDialog` 负责恢复冲突时三选项弹窗（覆盖 / 重命名 / 取消），批量恢复时第一次选择会自动应用到剩余项。 |
 | **`TrashListItem.tsx`** | 单条回收项卡片：左侧 checkbox + 头像色块（项目用 Folder 紫色，会话用首字母随机色）；标题 + 类型徽章（整个项目 / Claude / Codex）+ 删除时间；副信息显示预览/路径/大小/消息数；右侧 「恢复」「彻底删除」按钮。 |

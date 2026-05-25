@@ -14,6 +14,7 @@ type Props = {
   onOpen: (s: SessionSummary, jumpToEvent?: number, highlightQuery?: string) => void;
   onDelete: (s: SessionSummary) => void;
   onToggleStar: (s: SessionSummary) => void;
+  onSummarize: (s: SessionSummary) => void;
   loading: boolean;
   searchHits: SearchHit[] | null;
   searching: boolean;
@@ -30,6 +31,7 @@ export default function SessionList({
   onOpen,
   onDelete,
   onToggleStar,
+  onSummarize,
   loading,
   searchHits,
   searching,
@@ -135,6 +137,21 @@ export default function SessionList({
                     onToggleStar={() => {
                       if (sess) onToggleStar(sess);
                     }}
+                    onSummarize={() => {
+                      const target: SessionSummary =
+                        sess ?? {
+                          source: h.source,
+                          path: h.sessionPath,
+                          id: h.sessionPath.split(/[\\/]/).pop() ?? '',
+                          preview: h.matches[0]?.excerpt ?? '',
+                          timestamp: h.ts ?? 0,
+                          size: 0,
+                          messageCount: 0,
+                          projectKey: h.projectKey,
+                          projectLabel: h.projectLabel
+                        };
+                      onSummarize(target);
+                    }}
                   />
                 );
               })
@@ -146,6 +163,7 @@ export default function SessionList({
                   onOpen={() => onOpen(s)}
                   onDelete={() => onDelete(s)}
                   onToggleStar={() => onToggleStar(s)}
+                  onSummarize={() => onSummarize(s)}
                 />
               ))}
         </div>

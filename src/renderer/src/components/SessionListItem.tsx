@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Star, Trash2 } from 'lucide-react';
+import { Hash, MessageSquare, Sparkles, Star, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { SessionSummary } from '../types';
 
@@ -8,6 +8,7 @@ type Props = {
   onOpen: () => void;
   onDelete: () => void;
   onToggleStar: () => void;
+  onSummarize?: () => void;
 };
 
 function formatTime(ts: number): string {
@@ -62,7 +63,8 @@ export default function SessionListItem({
   starred,
   onOpen,
   onDelete,
-  onToggleStar
+  onToggleStar,
+  onSummarize
 }: Props): JSX.Element {
   const preview = session.preview || '(空会话)';
   return (
@@ -101,6 +103,18 @@ export default function SessionListItem({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {onSummarize && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSummarize();
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-ink-5 opacity-0 transition hover:bg-brand-50 hover:text-brand-600 group-hover:opacity-100"
+            title="生成续聊简报（AI 压缩上下文）"
+          >
+            <Sparkles size={15} />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

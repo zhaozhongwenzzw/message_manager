@@ -4,6 +4,9 @@ import {
   Check,
   Database,
   ExternalLink,
+  Eye,
+  EyeOff,
+  KeyRound,
   Loader2,
   Monitor,
   Moon,
@@ -11,13 +14,15 @@ import {
   RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
+  Sparkles,
   Sun,
   Trash2,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../api';
-import type { Appearance, SearchStatus } from '../types';
+import type { Appearance, LlmConfig, SearchStatus } from '../types';
 import { useConfirm } from './ConfirmDialog';
 
 type Props = {
@@ -72,6 +77,20 @@ export default function SettingsDialog({
   const [searchStatus, setSearchStatus] = useState<SearchStatus | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildResult, setRebuildResult] = useState<string | null>(null);
+
+  // LLM state
+  const [llm, setLlm] = useState<LlmConfig | null>(null);
+  const [llmKeyInput, setLlmKeyInput] = useState('');
+  const [llmKeyEditing, setLlmKeyEditing] = useState(false);
+  const [llmKeyVisible, setLlmKeyVisible] = useState(false);
+  const [llmSaving, setLlmSaving] = useState(false);
+  const [llmTesting, setLlmTesting] = useState(false);
+  const [llmTestResult, setLlmTestResult] = useState<
+    | { ok: true; modelInfo?: string }
+    | { ok: false; error: string }
+    | null
+  >(null);
+
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -79,7 +98,14 @@ export default function SettingsDialog({
     api.trashDefaultPath().then(setDefaultPath).catch(() => {});
     setErrMsg(null);
     setRebuildResult(null);
+    setLlmTestResult(null);
+    setLlmKeyEditing(false);
+    setLlmKeyInput('');
     void refreshSearchStatus();
+    void api
+      .llmConfigGet()
+      .then(setLlm)
+      .catch(() => setLlm(null));
   }, [open]);
 
   // Poll while the index is being built so the count keeps ticking up.
@@ -125,6 +151,35 @@ export default function SettingsDialog({
       setRebuildResult(`失败: ${e?.message ?? String(e)}`);
     } finally {
       setRebuilding(false);
+    }
+  }
+
+  async function patchLlm(patch: Partial<LlmConfig> & { apiKey?: string }): Promise<void> {
+    setLlmSaving(true);
+    try {
+      const next = await api.llmConfigSet(patch);
+      setLlm(next);
+      if (patch.apiKey !== undefined) {
+        setLlmKeyEditing(false);
+        setLlmKeyInput('');
+      }
+    } catch (e: any) {
+      setLlmTestResult({ ok: false, error: e?.message ?? String(e) });
+    } finally {
+      setLlmSaving(false);
+    }
+  }
+
+  async function handleTestLlm(): Promise<void> {
+    setLlmTesting(true);
+    setLlmTestResult(null);
+    try {
+      const res = await api.llmTestConnection();
+      setLlmTestResult(res);
+    } catch (e: any) {
+      setLlmTestResult({ ok: false, error: e?.message ?? String(e) });
+    } finally {
+      setLlmTesting(false);
     }
   }
 
@@ -359,6 +414,176 @@ export default function SettingsDialog({
                 <div className="mt-2 text-[11px] leading-relaxed text-ink-4">
                   索引存放在 ~/.claude-manager/search-index.json · 删除文件后下次启动会自动重建
                 </div>
+              </div>
+            </section>
+
+            {/* ── AI 助手 ───────────────────────────────────────── */}
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-5">
+                  AI 助手（续聊简报）
+                </div>
+                {llm?.enabled && llm.hasApiKey && (
+                  <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-600">
+                    已启用
+                  </span>
+                )}
+              </div>
+              <div className="rounded-xl2 border border-line bg-surface-sub p-3">
+                {llm ? (
+                  <div className="space-y-2.5">
+                    {/* Enable toggle */}
+                    <label className="flex cursor-pointer items-center gap-2 text-[12px] text-ink-2">
+                      <input
+                        type="checkbox"
+                        checked={llm.enabled}
+                        onChange={(e) => void patchLlm({ enabled: e.target.checked })}
+                        className="h-4 w-4 cursor-pointer accent-brand-600"
+                      />
+                      <Sparkles size={13} className="text-brand-600" />
+                      启用「续聊简报」功能（用 LLM 压缩会话上下文）
+                    </label>
+
+                    {llm.enabled && (
+                      <>
+                        {/* Base URL */}
+                        <div>
+                          <div className="mb-1 text-[11px] text-ink-5">Base URL</div>
+                          <input
+                            type="text"
+                            value={llm.baseUrl}
+                            onChange={(e) => setLlm({ ...llm, baseUrl: e.target.value })}
+                            onBlur={() => void patchLlm({ baseUrl: llm.baseUrl })}
+                            placeholder="https://api.openai.com/v1"
+                            className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-[12px] text-ink-1 outline-none transition focus:border-brand"
+                          />
+                        </div>
+
+                        {/* Model */}
+                        <div>
+                          <div className="mb-1 text-[11px] text-ink-5">Model</div>
+                          <input
+                            type="text"
+                            value={llm.model}
+                            onChange={(e) => setLlm({ ...llm, model: e.target.value })}
+                            onBlur={() => void patchLlm({ model: llm.model })}
+                            placeholder="gpt-4o-mini"
+                            className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-[12px] text-ink-1 outline-none transition focus:border-brand"
+                          />
+                        </div>
+
+                        {/* API Key */}
+                        <div>
+                          <div className="mb-1 text-[11px] text-ink-5">API Key</div>
+                          {llm.hasApiKey && !llmKeyEditing ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-1 items-center gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 font-mono text-[12px] text-ink-3">
+                                <KeyRound size={12} className="text-ink-5" />
+                                ••••••••••••••••
+                                <span className="ml-auto text-[10px] text-ink-5">已加密</span>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setLlmKeyEditing(true);
+                                  setLlmKeyInput('');
+                                }}
+                                className="flex h-8 items-center gap-1 rounded-md border border-line bg-surface px-2.5 text-[12px] text-ink-3 transition hover:border-brand hover:text-brand-600"
+                              >
+                                <Pencil size={12} />
+                                修改
+                              </button>
+                              <button
+                                onClick={() => void patchLlm({ apiKey: '' })}
+                                className="flex h-8 items-center gap-1 rounded-md border border-line bg-surface px-2.5 text-[12px] text-ink-3 transition hover:border-danger-200 hover:text-danger-600"
+                              >
+                                清除
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <input
+                                  type={llmKeyVisible ? 'text' : 'password'}
+                                  value={llmKeyInput}
+                                  onChange={(e) => setLlmKeyInput(e.target.value)}
+                                  placeholder="sk-..."
+                                  className="w-full rounded-md border border-line bg-surface px-2.5 py-1.5 pr-8 font-mono text-[12px] text-ink-1 outline-none transition focus:border-brand"
+                                />
+                                <button
+                                  onClick={() => setLlmKeyVisible((v) => !v)}
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-ink-5 hover:text-ink-2"
+                                  title={llmKeyVisible ? '隐藏' : '显示'}
+                                >
+                                  {llmKeyVisible ? <EyeOff size={12} /> : <Eye size={12} />}
+                                </button>
+                              </div>
+                              <button
+                                onClick={() => void patchLlm({ apiKey: llmKeyInput })}
+                                disabled={!llmKeyInput.trim() || llmSaving}
+                                className="flex h-8 items-center gap-1 rounded-md border border-brand bg-brand-50 px-2.5 text-[12px] text-brand-700 transition hover:bg-brand-100 disabled:opacity-50"
+                              >
+                                {llmSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                                保存
+                              </button>
+                              {llm.hasApiKey && (
+                                <button
+                                  onClick={() => {
+                                    setLlmKeyEditing(false);
+                                    setLlmKeyInput('');
+                                  }}
+                                  className="flex h-8 items-center rounded-md border border-line bg-surface px-2.5 text-[12px] text-ink-3 transition hover:border-line-strong"
+                                >
+                                  取消
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Test connection */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => void handleTestLlm()}
+                            disabled={llmTesting || !llm.hasApiKey}
+                            className="flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-[12px] text-ink-3 transition hover:border-brand hover:text-brand-600 disabled:opacity-50"
+                          >
+                            {llmTesting ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Zap size={12} />
+                            )}
+                            测试连接
+                          </button>
+                          {llmTestResult && (
+                            <div
+                              className={clsx(
+                                'flex-1 truncate rounded px-2 py-1 text-[11.5px]',
+                                llmTestResult.ok
+                                  ? 'bg-brand-50 text-brand-700'
+                                  : 'bg-danger-50 text-danger-600'
+                              )}
+                              title={
+                                llmTestResult.ok
+                                  ? `连接成功${llmTestResult.modelInfo ? ` · ${llmTestResult.modelInfo}` : ''}`
+                                  : llmTestResult.error
+                              }
+                            >
+                              {llmTestResult.ok
+                                ? `✓ 连接成功${llmTestResult.modelInfo ? ` · ${llmTestResult.modelInfo}` : ''}`
+                                : `✗ ${llmTestResult.error}`}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    <div className="text-[11px] leading-relaxed text-ink-4">
+                      Key 通过系统密钥链加密存储到 ~/.claude-manager/llm-key.enc，仅本机可解。会话内容会发送到你填写的 Base URL，请确保信任该端点。
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[12px] text-ink-5">加载中...</div>
+                )}
               </div>
             </section>
           </div>

@@ -4,7 +4,7 @@ import { scanClaude, scanCodex } from './scanner';
 import { readSession } from './reader';
 import { softDelete, softDeleteClaudeProject } from './deleter';
 import { clearStar, listStars, toggleStar } from './star';
-import { readConfig, writeConfig } from './store';
+import { readConfig, writeConfig, type LlmConfig } from './store';
 import { emptyTrash, listTrash, purgeFromTrash, restoreFromTrash, type RestoreArgs } from './trash';
 import {
   getSearchStatus,
@@ -14,6 +14,14 @@ import {
   syncSearchIndex,
   type SyncInput
 } from './search';
+import {
+  cancelStream,
+  getLlmConfig,
+  newStreamId,
+  setLlmConfig,
+  summarizeSession,
+  testConnection
+} from './llm';
 import {
   APP_DATA_DIR,
   CLAUDE_PROJECTS_DIR,
@@ -202,6 +210,49 @@ export function registerIpc(): void {
     lastCodexReady = true;
     return rebuildIndex(all);
   });
+
+  // ─── LLM ────────────────────────────────────────────────────────────────
+  ipcMain.handle('llm:config:get', () => getLlmConfig());
+  ipcMain.handle(
+    'llm:config:set',
+    (_e, args: Partial<LlmConfig> & { apiKey?: string }) => setLlmConfig(args)
+  );
+  ipcMain.handle('llm:test-connection', () => testConnection());
+  ipcMain.handle('llm:summarize:start', async (e, args: { sessionPath: string }) => {
+    const streamId = newStreamId();
+    // Fire and forget; events stream over llm:stream
+    void summarizeSession({
+      streamId,
+      sessionPath: args.sessionPath,
+      sender: e.sender
+    });
+    return { streamId };
+  });
+  ipcMain.handle('llm:summarize:cancel', (_e, args: { streamId: string }) => {
+    cancelStream(args.streamId);
+  });
+
+  // ─── File save dialog (used by summarize export) ───────────────────────
+  ipcMain.handle(
+    'dialog:save-file',
+    async (
+      e,
+      args: { defaultPath?: string; title?: string; content: string; filters?: Electron.FileFilter[] }
+    ) => {
+      const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+      const opts: Electron.SaveDialogOptions = {
+        title: args?.title ?? '保存文件',
+        defaultPath: args?.defaultPath,
+        filters: args?.filters ?? [{ name: 'Markdown', extensions: ['md'] }]
+      };
+      const result = win
+        ? await dialog.showSaveDialog(win, opts)
+        : await dialog.showSaveDialog(opts);
+      if (result.canceled || !result.filePath) return null;
+      await fs.writeFile(result.filePath, args.content, 'utf-8');
+      return { path: result.filePath };
+    }
+  );
 
   ipcMain.handle('updater:status', async () => (await updaterModule()).getStatus());
   ipcMain.handle('updater:check', async () =>

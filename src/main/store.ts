@@ -75,6 +75,14 @@ export async function writeMetadata(m: Metadata): Promise<void> {
 
 export type Appearance = 'light' | 'dark' | 'system';
 
+export type LlmConfig = {
+  enabled: boolean;
+  baseUrl: string;
+  model: string;
+  /** Set by the store when reading; never written from outside. */
+  hasApiKey?: boolean;
+};
+
 export type AppConfig = {
   activeTab: 'claude' | 'codex';
   windowBounds?: { x?: number; y?: number; width: number; height: number };
@@ -84,18 +92,28 @@ export type AppConfig = {
    *  default ~/.claude-manager/trash. Changing this does NOT move existing
    *  items — old trashed files remain at their original location. */
   trashDir?: string;
+  llm?: LlmConfig;
+};
+
+const DEFAULT_LLM_CONFIG: LlmConfig = {
+  enabled: false,
+  baseUrl: 'https://api.openai.com/v1',
+  model: 'gpt-4o-mini'
 };
 
 const DEFAULT_CONFIG: AppConfig = {
   activeTab: 'claude',
   windowBounds: { width: 1400, height: 900 },
   showStarredOnly: false,
-  appearance: 'system'
+  appearance: 'system',
+  llm: DEFAULT_LLM_CONFIG
 };
 
 export async function readConfig(): Promise<AppConfig> {
   const data = await readJsonSafe<Partial<AppConfig>>(CONFIG_FILE, {});
-  return { ...DEFAULT_CONFIG, ...data };
+  const merged = { ...DEFAULT_CONFIG, ...data };
+  merged.llm = { ...DEFAULT_LLM_CONFIG, ...(data.llm ?? {}) };
+  return merged;
 }
 
 export async function writeConfig(c: AppConfig): Promise<void> {
