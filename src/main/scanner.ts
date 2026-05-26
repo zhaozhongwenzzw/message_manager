@@ -20,6 +20,7 @@ export type SessionSummary = {
   messageCount: number;  // approx, by line count (cheap)
   projectKey: string;    // claude: encoded folder name, codex: YYYY-MM
   projectLabel: string;  // human-friendly label
+  archived?: boolean;    // codex-only: true when path is under archived_sessions/
 };
 
 export type ClaudeProject = {
@@ -242,6 +243,7 @@ export async function scanCodex(): Promise<SessionSummary[]> {
         }
         const d = new Date(probe.timestamp);
         const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const archived = filePath.startsWith(CODEX_ARCHIVED_DIR);
         return {
           source: 'codex',
           path: filePath,
@@ -251,7 +253,8 @@ export async function scanCodex(): Promise<SessionSummary[]> {
           size: stat.size,
           messageCount: probe.messageCount,
           projectKey: ym,
-          projectLabel: probe.cwd ? shortLabel(probe.cwd) : ym
+          projectLabel: probe.cwd ? shortLabel(probe.cwd) : ym,
+          archived
         };
       })
     )

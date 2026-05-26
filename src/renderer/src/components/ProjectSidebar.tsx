@@ -1,4 +1,4 @@
-import { Folder, Inbox, Calendar, Trash2, Settings } from 'lucide-react';
+import { Folder, Inbox, Calendar, Trash2, Settings, Archive } from 'lucide-react';
 import clsx from 'clsx';
 import type { Source } from '../types';
 
@@ -8,6 +8,7 @@ type Props = {
   tab: Source;
   projects: ProjectItem[];
   totalForTab: number;
+  archivedCount?: number; // codex only
   selectedKey: string;
   onSelect: (key: string) => void;
   onDeleteProject?: (key: string, label: string, count: number) => void;
@@ -42,6 +43,7 @@ export default function ProjectSidebar({
   tab,
   projects,
   totalForTab,
+  archivedCount,
   selectedKey,
   onSelect,
   onDeleteProject,
@@ -63,6 +65,16 @@ export default function ProjectSidebar({
           onClick={() => onSelect('__all__')}
           tone="bg-ink-1/5 text-ink-2"
         />
+        {tab === 'codex' && archivedCount != null && (
+          <SidebarRow
+            icon={<Archive size={14} />}
+            label="已归档"
+            count={archivedCount}
+            active={selectedKey === '__archived__'}
+            onClick={() => onSelect('__archived__')}
+            tone="bg-ink-1/5 text-ink-2"
+          />
+        )}
         <div className="my-2 h-px bg-line" />
         {projects.map((p) => (
           <SidebarRow

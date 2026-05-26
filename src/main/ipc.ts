@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import { scanClaude, scanCodex } from './scanner';
 import { readSession } from './reader';
 import { softDelete, softDeleteClaudeProject } from './deleter';
+import { archiveCodex, unarchiveCodex } from './archive';
 import { clearStar, listStars, toggleStar } from './star';
 import { readConfig, writeConfig, type LlmConfig } from './store';
 import { emptyTrash, listTrash, purgeFromTrash, restoreFromTrash, type RestoreArgs } from './trash';
@@ -122,6 +123,21 @@ export function registerIpc(): void {
   ipcMain.handle('delete:claude-project', async (_e, args: { projectKey: string }) => {
     const trash = await resolveTrashDir();
     return softDeleteClaudeProject(args.projectKey, trash);
+  });
+
+  ipcMain.handle('codex:archive', async (_e, args: { path: string }) => {
+    const res = await archiveCodex(args.path);
+    // Keep search index in sync: old path is gone, new path will be picked up
+    // on the next scan. Remove the stale doc now so search doesn't return a
+    // dead path between archive and the next scan completion.
+    void removeSessionFromIndex(args.path);
+    return res;
+  });
+
+  ipcMain.handle('codex:unarchive', async (_e, args: { path: string }) => {
+    const res = await unarchiveCodex(args.path);
+    void removeSessionFromIndex(args.path);
+    return res;
   });
 
   ipcMain.handle('star:list', () => listStars());

@@ -8,6 +8,8 @@ const api = {
     ipcRenderer.invoke('delete:session', { source, path }),
   deleteClaudeProject: (projectKey: string) =>
     ipcRenderer.invoke('delete:claude-project', { projectKey }),
+  codexArchive: (path: string) => ipcRenderer.invoke('codex:archive', { path }),
+  codexUnarchive: (path: string) => ipcRenderer.invoke('codex:unarchive', { path }),
   listStars: () => ipcRenderer.invoke('star:list'),
   toggleStar: (path: string, starred: boolean) =>
     ipcRenderer.invoke('star:toggle', { path, starred }),

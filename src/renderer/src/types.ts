@@ -10,6 +10,7 @@ export type SessionSummary = {
   messageCount: number;
   projectKey: string;
   projectLabel: string;
+  archived?: boolean;
 };
 
 export type ClaudeProject = {

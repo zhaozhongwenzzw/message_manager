@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Sparkles, Star, Trash2, User, Wrench } from 'lucide-react';
+import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Trash2, User, Wrench } from 'lucide-react';
 import clsx from 'clsx';
 import type { SearchHit, SearchMatch } from '../types';
 import { highlightTerms } from '../utils/highlight';
@@ -7,10 +7,12 @@ type Props = {
   hit: SearchHit;
   query: string;
   starred: boolean;
+  archived?: boolean;
   onOpen: (firstMatchIndex?: number) => void;
   onDelete: () => void;
   onToggleStar: () => void;
   onSummarize?: () => void;
+  onArchive?: () => void;
 };
 
 function formatTime(ts?: number): string {
@@ -70,16 +72,21 @@ export default function SearchHitItem({
   hit,
   query,
   starred,
+  archived,
   onOpen,
   onDelete,
   onToggleStar,
-  onSummarize
+  onSummarize,
+  onArchive
 }: Props): JSX.Element {
   const top = hit.matches.slice(0, 3);
   return (
     <div
       onClick={() => onOpen(hit.matches[0]?.eventIndex)}
-      className="group flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-surface px-4 py-3 transition hover:border-line-strong hover:shadow-card-hover"
+      className={clsx(
+        'group flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-surface px-4 py-3 transition hover:border-line-strong hover:shadow-card-hover',
+        archived && 'opacity-70'
+      )}
     >
       <div
         className={clsx(
@@ -105,6 +112,12 @@ export default function SearchHitItem({
           >
             {hit.source}
           </span>
+          {archived && (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-ink-1/5 px-1.5 py-0.5 text-[10px] font-medium text-ink-4">
+              <Archive size={9} />
+              已归档
+            </span>
+          )}
           {hit.ts && <span className="text-[11px] text-ink-5">{formatTime(hit.ts)}</span>}
         </div>
 
@@ -148,6 +161,18 @@ export default function SearchHitItem({
             title="生成续聊简报（AI 压缩上下文）"
           >
             <Sparkles size={15} />
+          </button>
+        )}
+        {onArchive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive();
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-ink-5 opacity-0 transition hover:bg-info-50 hover:text-info-600 group-hover:opacity-100"
+            title={archived ? '取消归档（移回 sessions/）' : '归档（移到 Codex archived_sessions/）'}
+          >
+            {archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
           </button>
         )}
         <button

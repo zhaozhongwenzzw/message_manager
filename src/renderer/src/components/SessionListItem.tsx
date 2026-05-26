@@ -1,4 +1,4 @@
-import { Hash, MessageSquare, Sparkles, Star, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { SessionSummary } from '../types';
 
@@ -9,6 +9,7 @@ type Props = {
   onDelete: () => void;
   onToggleStar: () => void;
   onSummarize?: () => void;
+  onArchive?: () => void; // codex only
 };
 
 function formatTime(ts: number): string {
@@ -64,13 +65,18 @@ export default function SessionListItem({
   onOpen,
   onDelete,
   onToggleStar,
-  onSummarize
+  onSummarize,
+  onArchive
 }: Props): JSX.Element {
   const preview = session.preview || '(空会话)';
+  const isArchived = !!session.archived;
   return (
     <div
       onClick={onOpen}
-      className="group flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-surface px-4 py-3 transition hover:border-line-strong hover:shadow-card-hover"
+      className={clsx(
+        'group flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-surface px-4 py-3 transition hover:border-line-strong hover:shadow-card-hover',
+        isArchived && 'opacity-70'
+      )}
     >
       <div
         className={clsx(
@@ -84,6 +90,12 @@ export default function SessionListItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate text-[13px] font-semibold text-ink-1">{session.projectLabel}</span>
+          {isArchived && (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-ink-1/5 px-1.5 py-0.5 text-[10px] font-medium text-ink-4">
+              <Archive size={9} />
+              已归档
+            </span>
+          )}
           <span className="text-[11px] text-ink-5">{formatTime(session.timestamp)}</span>
         </div>
         <div className="mt-1 line-clamp-1 text-[13px] text-ink-3">{preview}</div>
@@ -113,6 +125,18 @@ export default function SessionListItem({
             title="生成续聊简报（AI 压缩上下文）"
           >
             <Sparkles size={15} />
+          </button>
+        )}
+        {onArchive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive();
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-ink-5 opacity-0 transition hover:bg-info-50 hover:text-info-600 group-hover:opacity-100"
+            title={isArchived ? '取消归档（移回 sessions/）' : '归档（移到 Codex archived_sessions/）'}
+          >
+            {isArchived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
           </button>
         )}
         <button

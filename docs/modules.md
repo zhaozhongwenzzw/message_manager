@@ -60,6 +60,8 @@
 | `read:session` `{ path }` | 读完整会话文件并规范化成 `NormEvent[]` |
 | `delete:session` `{ source, path }` | 软删除单个会话到回收站 |
 | `delete:claude-project` `{ projectKey }` | 软删除整个 Claude 项目 |
+| `codex:archive` `{ path }` | 把 Codex 会话从 `~/.codex/sessions/` 移到 `~/.codex/archived_sessions/`（保留相对路径） |
+| `codex:unarchive` `{ path }` | 反向：从 archived_sessions/ 移回 sessions/ |
 | `star:list` | 拉所有收藏 |
 | `star:toggle` `{ path, starred }` | 切换收藏 |
 | `config:get` / `config:set` | 读写 `config.json` |
@@ -87,7 +89,7 @@
 
 ### `scanner.ts` — 历史会话扫描
 - `scanClaude()`：遍历 `~/.claude/projects/*/*.jsonl`，并发上限 8。每个文件用 `quickProbe()` 流式读首行——尽早提取首条 `user` 消息预览、首个 `cwd`、首个 `timestamp` 后立即 `break`，避免一次性 JSON.parse 整个大文件。
-- `scanCodex()`：递归遍历 `~/.codex/sessions/` 和 `archived_sessions/`，按 `YYYY-MM` 分组 `projectKey`。
+- `scanCodex()`：递归遍历 `~/.codex/sessions/` 和 `archived_sessions/`，按 `YYYY-MM` 分组 `projectKey`；扫到 `archived_sessions/` 下的会话时在 `SessionSummary.archived` 标 `true`，渲染端用这个标记分桶。
 - `projectLabel` 优先用真实 `cwd` 的尾段（`shortLabel`），无 cwd 时回退到 `decodeClaudeProjectName()`（Claude 用 `D--custorm-message-manager` 这种编码记录路径）。
 - `messageCount` 当流式读早期 break 后用 `size/250` 估算。
 
@@ -106,6 +108,13 @@
 - 路径越界校验：拒绝 `..` 出现在相对路径中。
 - 冲突回避：目标已存在则追加 ISO 时间戳后缀。
 - `softDeleteClaudeProject(projectKey, trashRoot)`：把整个 Claude 项目目录搬到 `<trashRoot>/claude/__projects/<key>`，先用白名单校验 `projectKey` 不含分隔符。
+
+### `archive.ts` — Codex 归档
+Codex 自带 `archived_sessions/` 目录用于存放已归档对话。本模块在 app 内实现这个操作的闭环（不再需要用户去 CLI 里手动 `mv`）。
+- `archiveCodex(srcPath)`：要求路径必须在 `CODEX_SESSIONS_DIR` 下；把文件 `rename` 到 `CODEX_ARCHIVED_DIR/<相对路径>`，保留 `YYYY/MM/rollout-xxx.jsonl` 这种月份子目录结构。冲突时追加 ISO 时间戳。
+- `unarchiveCodex(srcPath)`：反向，从 `archived_sessions/` 移回 `sessions/`。
+- 两个函数都做路径越界校验（拒绝 `..`、拒绝源路径不在期望目录下）。
+- Scanner 通过判断 `filePath.startsWith(CODEX_ARCHIVED_DIR)` 在 `SessionSummary.archived` 字段上回报真假，渲染端据此分桶 + 加视觉标记。
 
 ### `store.ts` — 配置 + 元数据持久化
 - `ensureAppDirs()`：建 `APP_DATA_DIR` 和 `DEFAULT_TRASH_DIR`。
@@ -203,10 +212,10 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | 组件 | 职责 |
 | --- | --- |
 | **`Header.tsx`** | 顶栏：Logo + Claude/Codex Tab 切换 + 计数徽章 + `<UpdateIndicator>` + 重新扫描按钮 + 打开回收站按钮。 |
-| **`ProjectSidebar.tsx`** | 左侧侧栏：「全部」+ 按项目（Claude）或按月份（Codex）分组；每行带计数；Claude 模式悬停出现「删除项目」；底部「设置」按钮。 |
-| **`SessionList.tsx`** | 中间会话列表：搜索框 + 「仅看收藏」过滤。无查询时按当前 tab 渲染 `SessionListItem`；有查询（≥ 2 字）时切换到 `SearchHitItem` 渲染主进程返回的 `SearchHit[]`，状态条显示「N 个会话命中」。 |
-| **`SessionListItem.tsx`** | 单条会话卡片：项目首字母色块头像、相对时间、预览、消息数、字节数、ID 前 8 位；悬停露出**续聊简报（Sparkles）/ 收藏 / 删除**三个按钮。 |
-| **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`；悬停同样有续聊简报按钮。 |
+| **`ProjectSidebar.tsx`** | 左侧侧栏：「全部」+ Codex tab 额外有「已归档」虚拟分类（仅当存在归档会话）+ 按项目（Claude）或按月份（Codex）分组；每行带计数；Claude 模式悬停出现「删除项目」；底部「设置」按钮。 |
+| **`SessionList.tsx`** | 中间会话列表：搜索框 + 「仅看收藏」过滤。无查询时按当前 tab 渲染 `SessionListItem`；有查询（≥ 2 字）时切换到 `SearchHitItem` 渲染主进程返回的 `SearchHit[]`，状态条显示「N 个会话命中」。Codex 会话会接 `onArchive` prop 透传给卡片的归档按钮。 |
+| **`SessionListItem.tsx`** | 单条会话卡片：项目首字母色块头像、相对时间、预览、消息数、字节数、ID 前 8 位；悬停露出**续聊简报（Sparkles）/ 归档（Archive，仅 codex）/ 收藏 / 删除**几个按钮。`session.archived === true` 时整卡 70% 透明 + 标题旁有「已归档」徽章，归档按钮变成 `ArchiveRestore`。 |
+| **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`；悬停同样有续聊简报 + Codex 的归档按钮，归档状态由 hitMap 查到的 `SessionSummary.archived` 或 `sessionPath.includes('archived_sessions')` 推断。 |
 | **`DetailDrawer.tsx`** | 右侧抽屉（可全屏）：调 `api.readSession(path)` 拿 `NormEvent[]`，顶栏统计 user/assistant/tool/thinking 数；元数据可隐藏；事件 >30 条时启用 `@tanstack/react-virtual` 虚拟列表。打开搜索结果时携带 `jumpToEvent` + `highlightQuery`：滚动到对应事件并播放 `.search-hit-target` ring 动画；同时给 user/assistant/thinking 切到纯文本 + 高亮模式（牺牲 markdown 换准确高亮），tool_result 的 `<pre>` 直接 `highlightTerms`。 |
 | **`EventRenderer.tsx`** | 把单个 `NormEvent` 渲染成统一卡片：`UserMessage`（蓝）/`AssistantMessage`（品牌色）/`Thinking`（灰斜体）/`ToolUse`（黄+图标 + 可展开完整输入）/`SubAgentCall`（紫，强调，Task 工具专用）/`ToolResult`（成功灰/失败红，>800 字可折叠）/`Meta` & `UnknownEvent`（`<details>` 收纳原始 JSON）。Markdown 走 `react-markdown` + `remark-gfm` + `rehype-highlight`。 |
 | **`SettingsDialog.tsx`** | 设置弹窗的**外壳**：左侧 sidebar 选分类，右侧渲染对应分区组件。820×600 固定尺寸，沉浸式布局。本身只负责导航 state（`active: SectionKey`）与各分区 props 转发，不含业务逻辑。 |

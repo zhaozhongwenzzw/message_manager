@@ -15,6 +15,7 @@ type Props = {
   onDelete: (s: SessionSummary) => void;
   onToggleStar: (s: SessionSummary) => void;
   onSummarize: (s: SessionSummary) => void;
+  onArchive?: (s: SessionSummary) => void;
   loading: boolean;
   searchHits: SearchHit[] | null;
   searching: boolean;
@@ -32,6 +33,7 @@ export default function SessionList({
   onDelete,
   onToggleStar,
   onSummarize,
+  onArchive,
   loading,
   searchHits,
   searching,
@@ -106,12 +108,14 @@ export default function SessionList({
           {inSearchMode
             ? hits.map((h) => {
                 const sess = hitMap.get(h.sessionPath);
+                const isArchived = sess?.archived ?? h.sessionPath.includes('archived_sessions');
                 return (
                   <SearchHitItem
                     key={h.sessionPath}
                     hit={h}
                     query={query}
                     starred={!!stars[h.sessionPath]}
+                    archived={isArchived}
                     onOpen={(idx) => {
                       if (sess) onOpen(sess, idx, query);
                       else
@@ -152,6 +156,26 @@ export default function SessionList({
                         };
                       onSummarize(target);
                     }}
+                    onArchive={
+                      onArchive && h.source === 'codex'
+                        ? () => {
+                            const target: SessionSummary =
+                              sess ?? {
+                                source: h.source,
+                                path: h.sessionPath,
+                                id: h.sessionPath.split(/[\\/]/).pop() ?? '',
+                                preview: h.matches[0]?.excerpt ?? '',
+                                timestamp: h.ts ?? 0,
+                                size: 0,
+                                messageCount: 0,
+                                projectKey: h.projectKey,
+                                projectLabel: h.projectLabel,
+                                archived: isArchived
+                              };
+                            onArchive(target);
+                          }
+                        : undefined
+                    }
                   />
                 );
               })
@@ -164,6 +188,7 @@ export default function SessionList({
                   onDelete={() => onDelete(s)}
                   onToggleStar={() => onToggleStar(s)}
                   onSummarize={() => onSummarize(s)}
+                  onArchive={onArchive && s.source === 'codex' ? () => onArchive(s) : undefined}
                 />
               ))}
         </div>

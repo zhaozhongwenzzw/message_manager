@@ -112,12 +112,23 @@ export default function App(): JSX.Element {
     return scan.codex;
   }, [tab, scan]);
 
+  // Codex: count of archived sessions for sidebar badge
+  const archivedCodexCount = useMemo(
+    () => scan.codex.filter((s) => s.archived).length,
+    [scan.codex]
+  );
+
   const projects = useMemo(() => {
     if (tab === 'claude') {
       return scan.claude.map((p) => ({ key: p.key, label: p.label, count: p.sessions.length }));
     }
+    // Codex: month buckets count only NON-archived sessions; archived live in
+    // their own virtual bucket.
     const map = new Map<string, number>();
-    for (const s of scan.codex) map.set(s.projectKey, (map.get(s.projectKey) ?? 0) + 1);
+    for (const s of scan.codex) {
+      if (s.archived) continue;
+      map.set(s.projectKey, (map.get(s.projectKey) ?? 0) + 1);
+    }
     return [...map.entries()]
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(([k, v]) => ({ key: k, label: k, count: v }));
@@ -125,11 +136,17 @@ export default function App(): JSX.Element {
 
   const filtered = useMemo(() => {
     let list = allSessions;
-    if (selectedProjectKey !== '__all__')
-      list = list.filter((s) => s.projectKey === selectedProjectKey);
+    if (selectedProjectKey === '__archived__') {
+      list = list.filter((s) => s.archived);
+    } else if (selectedProjectKey === '__all__') {
+      // 「全部」也不含归档，避免月份桶之和与「全部」不一致
+      if (tab === 'codex') list = list.filter((s) => !s.archived);
+    } else {
+      list = list.filter((s) => s.projectKey === selectedProjectKey && !s.archived);
+    }
     if (starredOnly) list = list.filter((s) => scan.stars[s.path]);
     return list;
-  }, [allSessions, selectedProjectKey, starredOnly, scan.stars]);
+  }, [allSessions, selectedProjectKey, starredOnly, scan.stars, tab]);
 
   // Full-text search: debounce 200ms, kick off when query is non-trivial.
   // 1 ASCII char or 1 CJK char alone is too noisy — require at least 2 chars
@@ -172,11 +189,18 @@ export default function App(): JSX.Element {
   const filteredHits = useMemo<SearchHit[] | null>(() => {
     if (!searchHits) return null;
     let list = searchHits;
-    if (selectedProjectKey !== '__all__')
-      list = list.filter((h) => h.projectKey === selectedProjectKey);
+    if (selectedProjectKey === '__archived__') {
+      list = list.filter((h) => h.sessionPath.includes('archived_sessions'));
+    } else if (selectedProjectKey === '__all__') {
+      if (tab === 'codex') list = list.filter((h) => !h.sessionPath.includes('archived_sessions'));
+    } else {
+      list = list.filter(
+        (h) => h.projectKey === selectedProjectKey && !h.sessionPath.includes('archived_sessions')
+      );
+    }
     if (starredOnly) list = list.filter((h) => scan.stars[h.sessionPath]);
     return list;
-  }, [searchHits, selectedProjectKey, starredOnly, scan.stars]);
+  }, [searchHits, selectedProjectKey, starredOnly, scan.stars, tab]);
 
   const onDelete = useCallback(
     async (s: SessionSummary) => {
@@ -268,6 +292,41 @@ export default function App(): JSX.Element {
     [selectedProjectKey, confirm]
   );
 
+  const onArchive = useCallback(
+    async (s: SessionSummary) => {
+      if (s.source !== 'codex') return;
+      const wasArchived = !!s.archived;
+      const wasStarred = !!scan.stars[s.path];
+      try {
+        const res = wasArchived
+          ? await api.codexUnarchive(s.path)
+          : await api.codexArchive(s.path);
+        // Migrate star metadata to the new path so the favorite survives the move.
+        if (wasStarred) {
+          await api.toggleStar(s.path, false).catch(() => {});
+          await api.toggleStar(res.newPath, true).catch(() => {});
+        }
+        // Optimistic local update: flip archived flag and rewrite the path.
+        // (next scan will reconcile fully.)
+        setScan((prev) => ({
+          ...prev,
+          codex: prev.codex.map((x) =>
+            x.path === s.path ? { ...x, path: res.newPath, archived: !wasArchived } : x
+          ),
+          stars: wasStarred
+            ? { ...prev.stars, [s.path]: false, [res.newPath]: true }
+            : prev.stars
+        }));
+        if (openSession?.path === s.path) {
+          setOpenSession({ ...s, path: res.newPath, archived: !wasArchived });
+        }
+      } catch (e: any) {
+        setError(`${wasArchived ? '取消归档' : '归档'}失败: ${e?.message ?? String(e)}`);
+      }
+    },
+    [openSession, scan.stars]
+  );
+
   return (
     <div className="flex h-full flex-col bg-canvas">
       <Header
@@ -297,7 +356,8 @@ export default function App(): JSX.Element {
           <ProjectSidebar
             tab={tab}
             projects={projects}
-            totalForTab={allSessions.length}
+            totalForTab={tab === 'codex' ? allSessions.length - archivedCodexCount : allSessions.length}
+            archivedCount={tab === 'codex' ? archivedCodexCount : undefined}
             selectedKey={selectedProjectKey}
             onSelect={setSelectedProjectKey}
             onDeleteProject={tab === 'claude' ? onDeleteProject : undefined}
@@ -317,6 +377,7 @@ export default function App(): JSX.Element {
             onDelete={onDelete}
             onToggleStar={onToggleStar}
             onSummarize={(s) => setSummarizeTarget(s)}
+            onArchive={onArchive}
             loading={scan.loading}
             searchHits={filteredHits}
             searching={searching}

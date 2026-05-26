@@ -37,6 +37,10 @@ export const api = {
     window.api.deleteSession(source, path) as Promise<{ trashPath: string }>,
   deleteClaudeProject: (projectKey: string) =>
     window.api.deleteClaudeProject(projectKey) as Promise<{ trashPath: string }>,
+  codexArchive: (path: string) =>
+    window.api.codexArchive(path) as Promise<{ newPath: string }>,
+  codexUnarchive: (path: string) =>
+    window.api.codexUnarchive(path) as Promise<{ newPath: string }>,
   listStars: () => window.api.listStars() as Promise<Record<string, boolean>>,
   toggleStar: (path: string, starred: boolean) =>
     window.api.toggleStar(path, starred) as Promise<void>,
