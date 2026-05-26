@@ -79,6 +79,8 @@ export type LlmConfig = {
   enabled: boolean;
   baseUrl: string;
   model: string;
+  /** 上下文窗口（token），用于决定是否启用 map-reduce 分块。默认 128k。 */
+  contextWindow: number;
   /** Set by the store when reading; never written from outside. */
   hasApiKey?: boolean;
 };
@@ -98,7 +100,8 @@ export type AppConfig = {
 const DEFAULT_LLM_CONFIG: LlmConfig = {
   enabled: false,
   baseUrl: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini'
+  model: 'gpt-4o-mini',
+  contextWindow: 128_000
 };
 
 const DEFAULT_CONFIG: AppConfig = {

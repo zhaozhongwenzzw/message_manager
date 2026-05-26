@@ -142,16 +142,17 @@
 
 ### `llm.ts` — AI 助手（续聊简报）
 - **目标**：把一条会话压缩成 800-1500 token 的 Markdown 简报，让用户粘到其他 LLM 接着干。
-- **OpenAI 兼容接口**：用户在设置里填 `baseUrl` + `model` + API Key，支持 OpenAI / DeepSeek / Moonshot / Ollama 等任何走 `/v1/chat/completions` SSE 协议的端点。
+- **OpenAI 兼容接口**：用户在设置里填 `baseUrl` + `model` + API Key + `contextWindow`，支持 OpenAI / DeepSeek / Moonshot / Ollama 等任何走 `/v1/chat/completions` SSE 协议的端点。
 - **API Key 安全**：通过 `safeStorage.encryptString` 加密落盘到 `~/.claude-manager/llm-key.enc`，调 OS 密钥链（Windows DPAPI / macOS Keychain / Linux libsecret）。渲染端**永远拿不到明文**，所有网络请求都在主进程发起。
-- **三阶段 agent 视觉**：
+- **双轨制 map-reduce**：
   1. `reading` — `readSession()` 拿 `NormEvent[]`
-  2. `preparing` — `eventsToPrompt()` 机械整理成纯文本（meta / unknown / parse_error 全跳；tool_use 折成一行摘要；tool_result 截到 400 字；user/assistant/thinking 截到 4000/4000/1000 字）
-  3. `generating` — fetch SSE 流，逐 delta 通过 `webContents.send('llm:stream', ...)` 推渲染端
-  > v0.3 只调一次 LLM，视觉上是 3 步；真正拆多 agent 留给 v0.4+。
-- **上下文超长**：prompt 估算 token > 上下文窗口 70% 时**截尾保留最近内容**，并在 phase meta 里带 `truncated: true` 提示 UI 显示。默认窗口 128k。
-- **取消**：每个任务对应一个 `AbortController`，关弹窗 / 点取消时 `controller.abort()`。
-- **错误**：HTTP 非 2xx 时把响应前 500 字塞进 error event，便于排查（典型场景：baseUrl 拼错、key 失效、model 不存在）。
+  2. `preparing` — `eventsToPrompt()` 机械整理成纯文本（meta / unknown / parse_error 全跳；tool_use 折成一行摘要；tool_result 截到 400 字；user/assistant/thinking 截到 4000/4000/1000 字），然后 `splitByBoundary()` 按 `【` 边界分块（每块 ≤ `contextWindow × 0.6 × 3` 字符）
+  3. 单块直送 → 跳到第 4 步；多块走 `mapping` → 用 `pLimit(2)` 并发对每块发非流式 LLM 调用，拿 200-400 token 的分段摘要，进度通过 phase event 推送（`{ done, total }`）
+  4. `generating` — 单块用 `SINGLE_SYSTEM_PROMPT` + 原文；多块用 `REDUCE_SYSTEM_PROMPT` + 拼接后的分段摘要。SSE 流式输出，逐 delta 通过 `webContents.send('llm:stream', ...)` 推渲染端
+- **上下文窗口**：用户在设置里配置（默认 128k，支持 8k/32k/128k/200k/1M 快捷预设）。超过的会话自动 map-reduce，**没有内容丢失**（不像之前的硬截尾）。
+- **并发**：map 阶段 `pLimit(2)` 避免触发 API 限流；任一块失败立即中止后续。
+- **取消**：单一 `AbortController` 覆盖整个流程（含 map 并发请求），关弹窗 / 点取消时 `controller.abort()`。
+- **错误**：HTTP 非 2xx 时把响应前 500 字塞进 error event，便于排查（典型场景：baseUrl 拼错、key 失效、model 不存在、上下文窗口设小了）。
 
 ### `updater.ts` — 自动更新
 基于 `electron-updater` + GitHub Releases (`zhaozhongwenzzw/message_manager`)。
@@ -208,8 +209,15 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`；悬停同样有续聊简报按钮。 |
 | **`DetailDrawer.tsx`** | 右侧抽屉（可全屏）：调 `api.readSession(path)` 拿 `NormEvent[]`，顶栏统计 user/assistant/tool/thinking 数；元数据可隐藏；事件 >30 条时启用 `@tanstack/react-virtual` 虚拟列表。打开搜索结果时携带 `jumpToEvent` + `highlightQuery`：滚动到对应事件并播放 `.search-hit-target` ring 动画；同时给 user/assistant/thinking 切到纯文本 + 高亮模式（牺牲 markdown 换准确高亮），tool_result 的 `<pre>` 直接 `highlightTerms`。 |
 | **`EventRenderer.tsx`** | 把单个 `NormEvent` 渲染成统一卡片：`UserMessage`（蓝）/`AssistantMessage`（品牌色）/`Thinking`（灰斜体）/`ToolUse`（黄+图标 + 可展开完整输入）/`SubAgentCall`（紫，强调，Task 工具专用）/`ToolResult`（成功灰/失败红，>800 字可折叠）/`Meta` & `UnknownEvent`（`<details>` 收纳原始 JSON）。Markdown 走 `react-markdown` + `remark-gfm` + `rehype-highlight`。 |
-| **`SettingsDialog.tsx`** | 设置弹窗：外观主题（浅/深/跟随系统，每个选项带迷你预览）+ 回收站路径（显示当前路径、修改、打开、恢复默认；非法路径会被 main 端拒绝并展示红条）+ **搜索索引**（显示已索引会话数 / 事件数 / 上次构建时间，构建中时显示进度 + spinner，「重建索引」按钮带 confirm）+ **AI 助手**（启用 toggle、Base URL、Model、API Key 输入/掩码显示/清除、测试连接按钮 + 结果横条；key 通过 safeStorage 加密）。 |
-| **`SummarizeDialog.tsx`** | AI 续聊简报弹窗。打开时拉 `llmConfigGet`，未配置则提示跳设置；否则调 `llm:summarize:start` 拿 streamId，订阅 `llm:stream` 累积事件。顶部 3 步时间线（读取 / 整理 / 生成）每步带耗时 + meta（事件数、prompt token 数 / 是否截断、模型名）；中部纯文本 pre 流式输出 + 闪烁光标；底部按钮：取消（运行中）/ 重新生成 / 保存为 .md（走原生 `dialog:save-file`）/ 复制（带 1.5s 已复制提示）。关闭即调 cancel 阻止扣费。 |
+| **`SettingsDialog.tsx`** | 设置弹窗的**外壳**：左侧 sidebar 选分类，右侧渲染对应分区组件。820×600 固定尺寸，沉浸式布局。本身只负责导航 state（`active: SectionKey`）与各分区 props 转发，不含业务逻辑。 |
+| **`settings/SettingsSidebar.tsx`** | 左侧导航：4 个分类（外观 / 回收站 / 搜索索引 / AI 助手），激活项品牌色高亮，每项有图标 + 副标题。 |
+| **`settings/sections.tsx`** | `SECTIONS` 数组 + `SectionKey` 类型，定义所有分区的元数据（key / label / desc / icon），sidebar 与 dialog 共用。 |
+| **`settings/AppearanceSection.tsx`** | 外观主题三选一（浅/深/跟随系统），每个选项带迷你预览（`AppearancePreview`）。 |
+| **`settings/AppearancePreview.tsx`** | 主题预览的 mini UI mockup（白/暗双色块），独立组件便于以后扩展更多主题。 |
+| **`settings/TrashSection.tsx`** | 回收站路径管理：显示当前路径、修改、打开、恢复默认；非法路径由 main 端拒绝并展示红条。 |
+| **`settings/SearchIndexSection.tsx`** | 搜索索引状态：已索引会话数 / 事件数 / 上次构建时间，构建中显示进度 + spinner，「重建索引」按钮带 confirm；自动轮询 building 状态。 |
+| **`settings/LlmSection.tsx`** | AI 助手配置：启用 toggle、Base URL、Model、上下文窗口数字输入 + 快捷预设（8k/32k/128k/200k/1M）、API Key 输入/掩码显示/清除、测试连接按钮 + 结果横条；key 通过 safeStorage 加密。 |
+| **`SummarizeDialog.tsx`** | AI 续聊简报弹窗。打开时拉 `llmConfigGet`，未配置则提示跳设置；否则调 `llm:summarize:start` 拿 streamId，订阅 `llm:stream` 累积事件。**动态时间线**：初始只有 `reading + preparing`，`preparing` done 时根据 `chunkCount` 动态追加 `mapping`（多块）+ `generating`，每步带耗时 + meta；mapping 阶段渲染进度条（done/total）。中部纯文本 pre 流式输出 + 闪烁光标；底部按钮：取消（运行中）/ 重新生成 / 保存为 .md（走原生 `dialog:save-file`）/ 复制（带 1.5s 已复制提示）。关闭即调 cancel 阻止扣费。 |
 | **`UpdateIndicator.tsx`** | Header 上的更新指示器 + 弹窗。订阅 `updater:status`，按 phase 切换图标/文案/动作按钮：`available` 显示「跳过此版本」+「下载更新」；`downloading` 显示进度条；`downloaded` 显示「立即重启并安装」；`pending-publish` 显示「重试下载」；同版本被「跳过」后下次启动不再自动弹窗（但 Header 图标常驻可手动打开）。 |
 | **`TrashView.tsx`** | 整页回收站视图（覆盖主视图区域）。顶部工具栏含返回 / 计数 / 在文件管理器中打开 / 刷新 / 清空回收站；左侧筛选「全部 / Claude / Codex / 整个项目」；中间搜索框 + 列表 + 多选状态下浮出的批量操作栏（恢复 / 彻底删除 / 取消选择）；内联 `ConflictDialog` 负责恢复冲突时三选项弹窗（覆盖 / 重命名 / 取消），批量恢复时第一次选择会自动应用到剩余项。 |
 | **`TrashListItem.tsx`** | 单条回收项卡片：左侧 checkbox + 头像色块（项目用 Folder 紫色，会话用首字母随机色）；标题 + 类型徽章（整个项目 / Claude / Codex）+ 删除时间；副信息显示预览/路径/大小/消息数；右侧 「恢复」「彻底删除」按钮。 |

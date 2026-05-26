@@ -22,7 +22,7 @@ type Props = {
   onOpenSettings: () => void;
 };
 
-type PhaseKey = 'reading' | 'preparing' | 'generating';
+type PhaseKey = 'reading' | 'preparing' | 'refining' | 'generating';
 type PhaseStatus = 'pending' | 'running' | 'done' | 'error';
 
 type PhaseState = {
@@ -33,15 +33,22 @@ type PhaseState = {
   meta?: Record<string, unknown>;
 };
 
-const PHASE_ORDER: PhaseKey[] = ['reading', 'preparing', 'generating'];
 const PHASE_LABEL: Record<PhaseKey, string> = {
   reading: '读取会话',
   preparing: '整理上下文',
-  generating: '生成简报'
+  refining: '逐段精炼简报',
+  generating: '生成最终简报'
 };
 
+/**
+ * Initial phases shown right after opening the dialog. We always do reading
+ * + preparing; the rest is decided once preparing's chunkCount comes back.
+ */
 function initialPhases(): PhaseState[] {
-  return PHASE_ORDER.map((key) => ({ key, status: 'pending' as const }));
+  return [
+    { key: 'reading', status: 'pending' },
+    { key: 'preparing', status: 'pending' }
+  ];
 }
 
 export default function SummarizeDialog({
@@ -79,11 +86,21 @@ export default function SummarizeDialog({
     const off = api.onLlmStream((ev: LlmStreamEvent) => {
       if (!streamIdRef.current || ev.streamId !== streamIdRef.current) return;
       if (ev.type === 'phase') {
-        setPhases((prev) =>
-          prev.map((p) => {
+        setPhases((prev) => {
+          let next = prev;
+          // Ensure the phase exists in the list (append if not).
+          if (!next.some((p) => p.key === ev.phase)) {
+            next = [...next, { key: ev.phase, status: 'pending' }];
+          }
+          next = next.map((p) => {
             if (p.key !== ev.phase) return p;
             if (ev.status === 'running') {
-              return { ...p, status: 'running', startedAt: Date.now(), meta: ev.meta };
+              return {
+                ...p,
+                status: 'running',
+                startedAt: p.startedAt ?? Date.now(),
+                meta: { ...(p.meta ?? {}), ...(ev.meta ?? {}) }
+              };
             }
             return {
               ...p,
@@ -91,8 +108,21 @@ export default function SummarizeDialog({
               finishedAt: Date.now(),
               meta: { ...(p.meta ?? {}), ...(ev.meta ?? {}) }
             };
-          })
-        );
+          });
+
+          // When preparing finishes, decide what comes next based on chunkCount.
+          if (ev.phase === 'preparing' && ev.status === 'done') {
+            const chunkCount = Number((ev.meta as any)?.chunkCount ?? 1);
+            const toAdd: PhaseKey[] =
+              chunkCount > 1 ? ['refining', 'generating'] : ['generating'];
+            for (const k of toAdd) {
+              if (!next.some((p) => p.key === k)) {
+                next = [...next, { key: k, status: 'pending' }];
+              }
+            }
+          }
+          return next;
+        });
       } else if (ev.type === 'token') {
         setOutput((prev) => prev + ev.delta);
       } else if (ev.type === 'done') {
@@ -409,17 +439,52 @@ function PhaseMeta({
     );
   }
   if (phase === 'preparing' && meta.estTokens != null) {
+    const chunkCount = Number(meta.chunkCount ?? 1);
     return (
       <div className="mt-0.5 text-[11px] text-ink-4">
-        prompt 约 {Number(meta.estTokens).toLocaleString()} token
-        {meta.truncated ? ' · 已截断早期内容' : ''}
+        原始约 {Number(meta.estTokens).toLocaleString()} token
+        {chunkCount > 1 ? (
+          <>
+            {' · '}
+            <span className="font-medium text-warn-600">
+              超出窗口，将分 {chunkCount} 段串行精炼
+            </span>
+          </>
+        ) : (
+          ' · 单次可送达'
+        )}
+      </div>
+    );
+  }
+  if (phase === 'refining') {
+    const done = Number(meta.done ?? 0);
+    const total = Number(meta.total ?? 0);
+    const briefChars = Number(meta.briefChars ?? 0);
+    return (
+      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-4">
+        <span>
+          进度: {done} / {total}
+        </span>
+        <div className="h-1 w-32 overflow-hidden rounded-full bg-line">
+          <div
+            className="h-full bg-brand-500 transition-all"
+            style={{ width: `${total > 0 ? (done / total) * 100 : 0}%` }}
+          />
+        </div>
+        {briefChars > 0 && (
+          <span className="text-ink-5">· 工作简报 {briefChars.toLocaleString()} 字</span>
+        )}
+        {typeof meta.model === 'string' && meta.model && (
+          <span className="text-ink-5">· {meta.model}</span>
+        )}
       </div>
     );
   }
   if (phase === 'generating' && meta.model) {
+    const mode = meta.mode === 'finalize' ? '把工作简报重组成结构化简报' : '直接压缩';
     return (
       <div className="mt-0.5 text-[11px] text-ink-4">
-        模型: {String(meta.model)}
+        {mode} · 模型: {String(meta.model)}
       </div>
     );
   }

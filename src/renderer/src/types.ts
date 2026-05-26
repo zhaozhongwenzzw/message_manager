@@ -116,6 +116,7 @@ export type LlmConfig = {
   enabled: boolean;
   baseUrl: string;
   model: string;
+  contextWindow: number;
   hasApiKey?: boolean;
 };
 
@@ -127,7 +128,7 @@ export type LlmStreamEvent =
   | {
       type: 'phase';
       streamId: string;
-      phase: 'reading' | 'preparing' | 'generating';
+      phase: 'reading' | 'preparing' | 'refining' | 'generating';
       status: 'running' | 'done' | 'error';
       meta?: Record<string, unknown>;
     }
