@@ -1,6 +1,6 @@
-import { Database, Palette, Sparkles, Trash2 } from 'lucide-react';
+import { Database, Palette, Sparkles, Terminal, Trash2 } from 'lucide-react';
 
-export type SectionKey = 'appearance' | 'trash' | 'search' | 'llm';
+export type SectionKey = 'appearance' | 'trash' | 'search' | 'llm' | 'terminal';
 
 export type SectionDef = {
   key: SectionKey;
@@ -33,5 +33,11 @@ export const SECTIONS: SectionDef[] = [
     label: 'AI 助手',
     desc: '续聊简报',
     icon: <Sparkles size={14} />
+  },
+  {
+    key: 'terminal',
+    label: '终端',
+    desc: 'Claude / Codex CLI',
+    icon: <Terminal size={14} />
   }
 ];

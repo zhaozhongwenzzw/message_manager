@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Trash2, User, Wrench } from 'lucide-react';
+import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Terminal, Trash2, User, Wrench } from 'lucide-react';
 import clsx from 'clsx';
 import type { SearchHit, SearchMatch } from '../types';
 import { highlightTerms } from '../utils/highlight';
@@ -8,11 +8,13 @@ type Props = {
   query: string;
   starred: boolean;
   archived?: boolean;
+  hasCwd?: boolean;
   onOpen: (firstMatchIndex?: number) => void;
   onDelete: () => void;
   onToggleStar: () => void;
   onSummarize?: () => void;
   onArchive?: () => void;
+  onOpenTerminal?: () => void;
 };
 
 function formatTime(ts?: number): string {
@@ -73,11 +75,13 @@ export default function SearchHitItem({
   query,
   starred,
   archived,
+  hasCwd,
   onOpen,
   onDelete,
   onToggleStar,
   onSummarize,
-  onArchive
+  onArchive,
+  onOpenTerminal
 }: Props): JSX.Element {
   const top = hit.matches.slice(0, 3);
   return (
@@ -151,6 +155,20 @@ export default function SearchHitItem({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {onOpenTerminal && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!hasCwd) return;
+              onOpenTerminal();
+            }}
+            disabled={!hasCwd}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-ink-5 opacity-0 transition hover:bg-info-50 hover:text-info-600 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-5 group-hover:opacity-100"
+            title={hasCwd ? '在终端 resume' : '会话未记录工作目录，无法 resume'}
+          >
+            <Terminal size={15} />
+          </button>
+        )}
         {onSummarize && (
           <button
             onClick={(e) => {

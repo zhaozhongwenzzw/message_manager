@@ -21,6 +21,7 @@ export type SessionSummary = {
   projectKey: string;    // claude: encoded folder name, codex: YYYY-MM
   projectLabel: string;  // human-friendly label
   archived?: boolean;    // codex-only: true when path is under archived_sessions/
+  cwd?: string;          // working directory probed from session metadata; undefined if not recorded
 };
 
 export type ClaudeProject = {
@@ -181,7 +182,8 @@ export async function scanClaude(): Promise<ClaudeProject[]> {
             size: stat.size,
             messageCount: probe.messageCount,
             projectKey: entry.name,
-            projectLabel: shortLabel(probe.cwd ?? decodeClaudeProjectName(entry.name))
+            projectLabel: shortLabel(probe.cwd ?? decodeClaudeProjectName(entry.name)),
+            cwd: probe.cwd
           };
         })
       )
@@ -254,7 +256,8 @@ export async function scanCodex(): Promise<SessionSummary[]> {
           messageCount: probe.messageCount,
           projectKey: ym,
           projectLabel: probe.cwd ? shortLabel(probe.cwd) : ym,
-          archived
+          archived,
+          cwd: probe.cwd
         };
       })
     )

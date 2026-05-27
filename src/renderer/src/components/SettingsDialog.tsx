@@ -6,6 +6,7 @@ import AppearanceSection from './settings/AppearanceSection';
 import TrashSection from './settings/TrashSection';
 import SearchIndexSection from './settings/SearchIndexSection';
 import LlmSection from './settings/LlmSection';
+import TerminalSection from './settings/TerminalSection';
 import SettingsSidebar from './settings/SettingsSidebar';
 import { SECTIONS, type SectionKey } from './settings/sections';
 
@@ -75,6 +76,7 @@ export default function SettingsDialog({
               )}
               {active === 'search' && <SearchIndexSection open={open} />}
               {active === 'llm' && <LlmSection open={open} />}
+              {active === 'terminal' && <TerminalSection open={open} />}
             </div>
           </div>
         </Dialog.Content>

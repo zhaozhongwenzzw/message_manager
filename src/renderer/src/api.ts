@@ -5,6 +5,7 @@ import type {
   LlmStreamEvent,
   LlmTestResult,
   NormEvent,
+  OpenTerminalResult,
   RestoreResult,
   SearchHit,
   SearchStatus,
@@ -51,6 +52,11 @@ export const api = {
   revealPath: (path: string) => window.api.revealPath(path) as Promise<string>,
   pickFolder: (opts?: { defaultPath?: string; title?: string }) =>
     window.api.pickFolder(opts) as Promise<null | { path?: string; error?: string }>,
+  pickFile: (opts?: {
+    defaultPath?: string;
+    title?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }) => window.api.pickFile(opts) as Promise<null | { path: string }>,
   trashDefaultPath: () => window.api.trashDefaultPath() as Promise<string>,
   trashList: () => window.api.trashList() as Promise<TrashEntry[]>,
   trashRestore: (args: { trashPath: string; mode?: 'overwrite' | 'rename' }) =>
@@ -74,6 +80,9 @@ export const api = {
     window.api.llmSummarizeCancel(args) as Promise<void>,
   onLlmStream: (cb: (ev: LlmStreamEvent) => void) =>
     window.api.onLlmStream((ev: unknown) => cb(ev as LlmStreamEvent)),
+  // Terminal resume
+  terminalOpen: (args: { source: Source; sessionPath: string; cwd?: string }) =>
+    window.api.terminalOpen(args) as Promise<OpenTerminalResult>,
   saveFile: (args: {
     defaultPath?: string;
     title?: string;

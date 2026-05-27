@@ -85,6 +85,14 @@ export type LlmConfig = {
   hasApiKey?: boolean;
 };
 
+/** 终端 / CLI 相关配置；本期只暴露 CLI 路径覆盖。 */
+export type TerminalConfig = {
+  /** Absolute path to claude CLI. Empty = look up "claude" on PATH. */
+  claudePath?: string;
+  /** Absolute path to codex CLI. Empty = look up "codex" on PATH. */
+  codexPath?: string;
+};
+
 export type AppConfig = {
   activeTab: 'claude' | 'codex';
   windowBounds?: { x?: number; y?: number; width: number; height: number };
@@ -95,6 +103,7 @@ export type AppConfig = {
    *  items — old trashed files remain at their original location. */
   trashDir?: string;
   llm?: LlmConfig;
+  terminal?: TerminalConfig;
 };
 
 const DEFAULT_LLM_CONFIG: LlmConfig = {

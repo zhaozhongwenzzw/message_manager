@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Terminal, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { SessionSummary } from '../types';
 
@@ -10,6 +10,7 @@ type Props = {
   onToggleStar: () => void;
   onSummarize?: () => void;
   onArchive?: () => void; // codex only
+  onOpenTerminal?: () => void;
 };
 
 function formatTime(ts: number): string {
@@ -66,10 +67,12 @@ export default function SessionListItem({
   onDelete,
   onToggleStar,
   onSummarize,
-  onArchive
+  onArchive,
+  onOpenTerminal
 }: Props): JSX.Element {
   const preview = session.preview || '(空会话)';
   const isArchived = !!session.archived;
+  const hasCwd = !!session.cwd?.trim();
   return (
     <div
       onClick={onOpen}
@@ -115,6 +118,24 @@ export default function SessionListItem({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {onOpenTerminal && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!hasCwd) return;
+              onOpenTerminal();
+            }}
+            disabled={!hasCwd}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-ink-5 opacity-0 transition hover:bg-info-50 hover:text-info-600 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-5 group-hover:opacity-100"
+            title={
+              hasCwd
+                ? `在终端 resume（${session.source === 'claude' ? 'claude --resume' : 'codex resume'}）`
+                : '会话未记录工作目录，无法 resume'
+            }
+          >
+            <Terminal size={15} />
+          </button>
+        )}
         {onSummarize && (
           <button
             onClick={(e) => {

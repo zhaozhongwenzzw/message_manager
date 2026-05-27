@@ -11,6 +11,7 @@ export type SessionSummary = {
   projectKey: string;
   projectLabel: string;
   archived?: boolean;
+  cwd?: string;
 };
 
 export type ClaudeProject = {
@@ -45,6 +46,7 @@ export type AppConfig = {
   showStarredOnly: boolean;
   appearance: Appearance;
   trashDir?: string;
+  terminal?: TerminalConfig;
 };
 
 export type UpdateInfoLite = {
@@ -141,3 +143,19 @@ export type LlmStreamEvent =
       usage?: { inputTokens?: number; outputTokens?: number };
     }
   | { type: 'error'; streamId: string; message: string };
+
+export type TerminalConfig = {
+  claudePath?: string;
+  codexPath?: string;
+};
+
+export type OpenTerminalError =
+  | { code: 'cwd_missing'; cwd: string }
+  | { code: 'cwd_not_set' }
+  | { code: 'cli_not_found'; cli: 'claude' | 'codex' }
+  | { code: 'session_id_invalid'; raw: string }
+  | { code: 'terminal_spawn_failed'; detail: string };
+
+export type OpenTerminalResult =
+  | { ok: true }
+  | { ok: false; error: OpenTerminalError };

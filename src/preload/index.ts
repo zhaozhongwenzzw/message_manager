@@ -20,6 +20,11 @@ const api = {
   revealPath: (path: string) => ipcRenderer.invoke('path:reveal', { path }),
   pickFolder: (opts?: { defaultPath?: string; title?: string }) =>
     ipcRenderer.invoke('dialog:pick-folder', opts ?? {}),
+  pickFile: (opts?: {
+    defaultPath?: string;
+    title?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }) => ipcRenderer.invoke('dialog:pick-file', opts ?? {}),
   trashDefaultPath: () => ipcRenderer.invoke('trash:default-path'),
   trashList: () => ipcRenderer.invoke('trash:list'),
   trashRestore: (args: { trashPath: string; mode?: 'overwrite' | 'rename' }) =>
@@ -44,6 +49,9 @@ const api = {
     ipcRenderer.on('llm:stream', handler);
     return () => ipcRenderer.removeListener('llm:stream', handler);
   },
+  // Terminal resume
+  terminalOpen: (args: { source: 'claude' | 'codex'; sessionPath: string; cwd?: string }) =>
+    ipcRenderer.invoke('terminal:open', args),
   // File save
   saveFile: (args: {
     defaultPath?: string;

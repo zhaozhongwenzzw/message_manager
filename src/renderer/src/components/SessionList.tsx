@@ -16,6 +16,7 @@ type Props = {
   onToggleStar: (s: SessionSummary) => void;
   onSummarize: (s: SessionSummary) => void;
   onArchive?: (s: SessionSummary) => void;
+  onOpenTerminal?: (s: SessionSummary) => void;
   loading: boolean;
   searchHits: SearchHit[] | null;
   searching: boolean;
@@ -34,6 +35,7 @@ export default function SessionList({
   onToggleStar,
   onSummarize,
   onArchive,
+  onOpenTerminal,
   loading,
   searchHits,
   searching,
@@ -116,6 +118,7 @@ export default function SessionList({
                     query={query}
                     starred={!!stars[h.sessionPath]}
                     archived={isArchived}
+                    hasCwd={!!sess?.cwd?.trim()}
                     onOpen={(idx) => {
                       if (sess) onOpen(sess, idx, query);
                       else
@@ -176,6 +179,11 @@ export default function SessionList({
                           }
                         : undefined
                     }
+                    onOpenTerminal={
+                      onOpenTerminal && sess
+                        ? () => onOpenTerminal(sess)
+                        : undefined
+                    }
                   />
                 );
               })
@@ -189,6 +197,7 @@ export default function SessionList({
                   onToggleStar={() => onToggleStar(s)}
                   onSummarize={() => onSummarize(s)}
                   onArchive={onArchive && s.source === 'codex' ? () => onArchive(s) : undefined}
+                  onOpenTerminal={onOpenTerminal ? () => onOpenTerminal(s) : undefined}
                 />
               ))}
         </div>

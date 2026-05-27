@@ -7,6 +7,7 @@ import { archiveCodex, unarchiveCodex } from './archive';
 import { clearStar, listStars, toggleStar } from './star';
 import { readConfig, writeConfig, type LlmConfig } from './store';
 import { emptyTrash, listTrash, purgeFromTrash, restoreFromTrash, type RestoreArgs } from './trash';
+import { openInTerminal } from './terminal';
 import {
   getSearchStatus,
   rebuildIndex,
@@ -183,6 +184,27 @@ export function registerIpc(): void {
     return { path: picked };
   });
 
+  ipcMain.handle(
+    'dialog:pick-file',
+    async (
+      e,
+      args: { defaultPath?: string; title?: string; filters?: Electron.FileFilter[] }
+    ) => {
+      const win = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+      const opts: Electron.OpenDialogOptions = {
+        title: args?.title ?? '选择文件',
+        defaultPath: args?.defaultPath,
+        filters: args?.filters,
+        properties: ['openFile']
+      };
+      const result = win
+        ? await dialog.showOpenDialog(win, opts)
+        : await dialog.showOpenDialog(opts);
+      if (result.canceled || result.filePaths.length === 0) return null;
+      return { path: result.filePaths[0] };
+    }
+  );
+
   ipcMain.handle('trash:default-path', () => DEFAULT_TRASH_DIR);
 
   ipcMain.handle('trash:list', async () => listTrash(await resolveTrashDir()));
@@ -247,6 +269,13 @@ export function registerIpc(): void {
   ipcMain.handle('llm:summarize:cancel', (_e, args: { streamId: string }) => {
     cancelStream(args.streamId);
   });
+
+  // ─── Terminal resume ───────────────────────────────────────────────────
+  ipcMain.handle(
+    'terminal:open',
+    (_e, args: { source: 'claude' | 'codex'; sessionPath: string; cwd?: string }) =>
+      openInTerminal(args)
+  );
 
   // ─── File save dialog (used by summarize export) ───────────────────────
   ipcMain.handle(

@@ -9,6 +9,7 @@ import SettingsDialog from './components/SettingsDialog';
 import SummarizeDialog from './components/SummarizeDialog';
 import TrashView from './components/TrashView';
 import { useConfirm } from './components/ConfirmDialog';
+import { translateTerminalError } from './utils/terminalError';
 
 type ScanState = {
   loading: boolean;
@@ -301,13 +302,10 @@ export default function App(): JSX.Element {
         const res = wasArchived
           ? await api.codexUnarchive(s.path)
           : await api.codexArchive(s.path);
-        // Migrate star metadata to the new path so the favorite survives the move.
         if (wasStarred) {
           await api.toggleStar(s.path, false).catch(() => {});
           await api.toggleStar(res.newPath, true).catch(() => {});
         }
-        // Optimistic local update: flip archived flag and rewrite the path.
-        // (next scan will reconcile fully.)
         setScan((prev) => ({
           ...prev,
           codex: prev.codex.map((x) =>
@@ -326,6 +324,15 @@ export default function App(): JSX.Element {
     },
     [openSession, scan.stars]
   );
+
+  const onOpenTerminal = useCallback(async (s: SessionSummary) => {
+    const res = await api.terminalOpen({
+      source: s.source,
+      sessionPath: s.path,
+      cwd: s.cwd
+    });
+    if (!res.ok) setError(translateTerminalError(res.error));
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-canvas">
@@ -378,6 +385,7 @@ export default function App(): JSX.Element {
             onToggleStar={onToggleStar}
             onSummarize={(s) => setSummarizeTarget(s)}
             onArchive={onArchive}
+            onOpenTerminal={onOpenTerminal}
             loading={scan.loading}
             searchHits={filteredHits}
             searching={searching}
