@@ -32,6 +32,7 @@ export default function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<Appearance>('system');
   const [trashDir, setTrashDir] = useState<string | undefined>(undefined);
+  const [codexGrouping, setCodexGrouping] = useState<'month' | 'project'>('month');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summarizeTarget, setSummarizeTarget] = useState<SessionSummary | null>(null);
   const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
@@ -86,6 +87,7 @@ export default function App(): JSX.Element {
         setStarredOnly(cfg.showStarredOnly);
         setAppearance(cfg.appearance);
         setTrashDir(cfg.trashDir);
+        if (cfg.codexGrouping) setCodexGrouping(cfg.codexGrouping);
       } catch {
         // first run
       }
@@ -102,11 +104,12 @@ export default function App(): JSX.Element {
           activeTab: tab,
           showStarredOnly: starredOnly,
           appearance,
-          trashDir
+          trashDir,
+          codexGrouping
         })
       )
       .catch(() => {});
-  }, [tab, starredOnly, appearance, trashDir]);
+  }, [tab, starredOnly, appearance, trashDir, codexGrouping]);
 
   const allSessions = useMemo<SessionSummary[]>(() => {
     if (tab === 'claude') return scan.claude.flatMap((p) => p.sessions);
@@ -123,17 +126,40 @@ export default function App(): JSX.Element {
     if (tab === 'claude') {
       return scan.claude.map((p) => ({ key: p.key, label: p.label, count: p.sessions.length }));
     }
-    // Codex: month buckets count only NON-archived sessions; archived live in
-    // their own virtual bucket.
-    const map = new Map<string, number>();
-    for (const s of scan.codex) {
-      if (s.archived) continue;
-      map.set(s.projectKey, (map.get(s.projectKey) ?? 0) + 1);
+    // Codex 月份桶 / 项目桶都只算非归档会话，归档单独入桶。
+    const active = scan.codex.filter((s) => !s.archived);
+    if (codexGrouping === 'project') {
+      // Bucket by cwd. Sessions without cwd land under a synthetic "未知项目" bucket.
+      const UNKNOWN = '__no_cwd__';
+      const map = new Map<string, { label: string; count: number }>();
+      for (const s of active) {
+        const key = s.cwd?.trim() || UNKNOWN;
+        const label =
+          key === UNKNOWN
+            ? '未知项目'
+            : s.projectLabel && s.projectLabel !== s.projectKey
+              ? s.projectLabel
+              : key;
+        const cur = map.get(key);
+        if (cur) cur.count++;
+        else map.set(key, { label, count: 1 });
+      }
+      // Sort by count desc, unknown bucket last.
+      return [...map.entries()]
+        .sort(([ak, av], [bk, bv]) => {
+          if (ak === UNKNOWN) return 1;
+          if (bk === UNKNOWN) return -1;
+          return bv.count - av.count;
+        })
+        .map(([k, v]) => ({ key: k, label: v.label, count: v.count }));
     }
+    // Default: bucket by YYYY-MM.
+    const map = new Map<string, number>();
+    for (const s of active) map.set(s.projectKey, (map.get(s.projectKey) ?? 0) + 1);
     return [...map.entries()]
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(([k, v]) => ({ key: k, label: k, count: v }));
-  }, [tab, scan]);
+  }, [tab, scan, codexGrouping]);
 
   const filtered = useMemo(() => {
     let list = allSessions;
@@ -143,11 +169,20 @@ export default function App(): JSX.Element {
       // 「全部」也不含归档，避免月份桶之和与「全部」不一致
       if (tab === 'codex') list = list.filter((s) => !s.archived);
     } else {
-      list = list.filter((s) => s.projectKey === selectedProjectKey && !s.archived);
+      if (tab === 'codex' && codexGrouping === 'project') {
+        // selectedProjectKey is a cwd (or '__no_cwd__' sentinel)
+        list = list.filter((s) => {
+          if (s.archived) return false;
+          const k = s.cwd?.trim() || '__no_cwd__';
+          return k === selectedProjectKey;
+        });
+      } else {
+        list = list.filter((s) => s.projectKey === selectedProjectKey && !s.archived);
+      }
     }
     if (starredOnly) list = list.filter((s) => scan.stars[s.path]);
     return list;
-  }, [allSessions, selectedProjectKey, starredOnly, scan.stars, tab]);
+  }, [allSessions, selectedProjectKey, starredOnly, scan.stars, tab, codexGrouping]);
 
   // Full-text search: debounce 200ms, kick off when query is non-trivial.
   // 1 ASCII char or 1 CJK char alone is too noisy — require at least 2 chars
@@ -194,6 +229,14 @@ export default function App(): JSX.Element {
       list = list.filter((h) => h.sessionPath.includes('archived_sessions'));
     } else if (selectedProjectKey === '__all__') {
       if (tab === 'codex') list = list.filter((h) => !h.sessionPath.includes('archived_sessions'));
+    } else if (tab === 'codex' && codexGrouping === 'project') {
+      // Need to look up cwd via the session summary — search index doesn't
+      // carry cwd.
+      const cwdByPath = new Map(scan.codex.map((s) => [s.path, s.cwd?.trim() || '__no_cwd__']));
+      list = list.filter((h) => {
+        if (h.sessionPath.includes('archived_sessions')) return false;
+        return cwdByPath.get(h.sessionPath) === selectedProjectKey;
+      });
     } else {
       list = list.filter(
         (h) => h.projectKey === selectedProjectKey && !h.sessionPath.includes('archived_sessions')
@@ -201,7 +244,7 @@ export default function App(): JSX.Element {
     }
     if (starredOnly) list = list.filter((h) => scan.stars[h.sessionPath]);
     return list;
-  }, [searchHits, selectedProjectKey, starredOnly, scan.stars, tab]);
+  }, [searchHits, selectedProjectKey, starredOnly, scan.stars, scan.codex, tab, codexGrouping]);
 
   const onDelete = useCallback(
     async (s: SessionSummary) => {
@@ -369,6 +412,13 @@ export default function App(): JSX.Element {
             onSelect={setSelectedProjectKey}
             onDeleteProject={tab === 'claude' ? onDeleteProject : undefined}
             onOpenSettings={() => setSettingsOpen(true)}
+            codexGrouping={tab === 'codex' ? codexGrouping : undefined}
+            onCodexGroupingChange={(g) => {
+              setCodexGrouping(g);
+              // Selected key is grouping-specific (cwd vs YYYY-MM); reset to
+              // "全部" so we don't leave the user on a phantom bucket.
+              setSelectedProjectKey('__all__');
+            }}
           />
           <SessionList
             sessions={filtered}

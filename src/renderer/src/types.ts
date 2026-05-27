@@ -46,6 +46,7 @@ export type AppConfig = {
   showStarredOnly: boolean;
   appearance: Appearance;
   trashDir?: string;
+  codexGrouping?: 'month' | 'project';
   terminal?: TerminalConfig;
 };
 

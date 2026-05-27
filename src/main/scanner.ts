@@ -9,6 +9,7 @@ import {
   shortLabel
 } from './paths';
 import { pLimit } from './limit';
+import { loadCodexThreadNames } from './codexIndex';
 
 export type SessionSummary = {
   source: 'claude' | 'codex';
@@ -232,6 +233,10 @@ export async function scanCodex(): Promise<SessionSummary[]> {
   await walk(CODEX_SESSIONS_DIR);
   await walk(CODEX_ARCHIVED_DIR);
 
+  // Pre-load Codex's own thread-name index. Falls back to empty Map if file
+  // missing — preview just degrades to probe result.
+  const threadNames = await loadCodexThreadNames();
+
   const limit = pLimit(8);
   const sessions = await Promise.all(
     files.map((filePath) =>
@@ -246,11 +251,22 @@ export async function scanCodex(): Promise<SessionSummary[]> {
         const d = new Date(probe.timestamp);
         const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const archived = filePath.startsWith(CODEX_ARCHIVED_DIR);
+        // Codex 文件名是 rollout-<ts>-<uuid>.jsonl；尾段就是 session id。
+        // Thread name 索引以裸 UUID 为键，所以从 basename 抠 UUID 再查。
+        const idRaw = basename(filePath).replace(/\.(jsonl|json)$/, '');
+        const uuidMatch = idRaw.match(
+          /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+        );
+        const uuid = uuidMatch ? uuidMatch[1] : idRaw;
+        const threadName = threadNames.get(uuid);
+        // 优先用 Codex 自己的 thread_name —— 它是 Codex LLM 自动总结的，
+        // 比 probe 抠出来的"# AGENTS.md instructions..."这种 system prompt 噪声小得多。
+        const preview = threadName?.trim() || probe.preview;
         return {
           source: 'codex',
           path: filePath,
-          id: basename(filePath).replace(/\.(jsonl|json)$/, ''),
-          preview: probe.preview,
+          id: idRaw,
+          preview,
           timestamp: probe.timestamp,
           size: stat.size,
           messageCount: probe.messageCount,

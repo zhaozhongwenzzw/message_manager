@@ -91,9 +91,14 @@
 
 ### `scanner.ts` — 历史会话扫描
 - `scanClaude()`：遍历 `~/.claude/projects/*/*.jsonl`，并发上限 8。每个文件用 `quickProbe()` 流式读首行——尽早提取首条 `user` 消息预览、首个 `cwd`、首个 `timestamp` 后立即 `break`，避免一次性 JSON.parse 整个大文件。
-- `scanCodex()`：递归遍历 `~/.codex/sessions/` 和 `archived_sessions/`，按 `YYYY-MM` 分组 `projectKey`；扫到 `archived_sessions/` 下的会话时在 `SessionSummary.archived` 标 `true`，渲染端用这个标记分桶。
+- `scanCodex()`：递归遍历 `~/.codex/sessions/` 和 `archived_sessions/`，按 `YYYY-MM` 分组 `projectKey`；扫到 `archived_sessions/` 下的会话时在 `SessionSummary.archived` 标 `true`，渲染端用这个标记分桶。扫描开始时先调 `loadCodexThreadNames()` 拿到 Codex 自己生成的 thread_name 索引，把它作为 `preview` 的首选（fallback 才用 quickProbe 抠出的首条 user 消息）。
 - `projectLabel` 优先用真实 `cwd` 的尾段（`shortLabel`），无 cwd 时回退到 `decodeClaudeProjectName()`（Claude 用 `D--custorm-message-manager` 这种编码记录路径）。
 - `messageCount` 当流式读早期 break 后用 `size/250` 估算。
+
+### `codexIndex.ts` — Codex thread_name 索引
+- Codex 自己在 `~/.codex/session_index.jsonl` 里逐行维护每个会话的 `id` + `thread_name`（LLM 自动总结的标题，类似 "Fix PyCharm port lock access"）。
+- `loadCodexThreadNames()`：流式读这个文件，build `Map<uuid, thread_name>`，文件不存在 / 解析失败时返回空 Map（**功能降级**，不阻断 scanCodex）。
+- 用途：scanCodex 把 thread_name 作为 `preview` 字段优先值，避免之前 probe 抠首条 user 消息时抓到 `# AGENTS.md instructions...` 这种 system prompt 噪声。
 
 ### `reader.ts` — 会话事件规范化
 `readSession(filePath)` 逐行解析 JSONL，把 Claude 和 Codex 两种形态映射到统一的 `NormEvent`：
@@ -226,7 +231,7 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | 组件 | 职责 |
 | --- | --- |
 | **`Header.tsx`** | 顶栏：Logo + Claude/Codex Tab 切换 + 计数徽章 + `<UpdateIndicator>` + 重新扫描按钮 + 打开回收站按钮。 |
-| **`ProjectSidebar.tsx`** | 左侧侧栏：「全部」+ Codex tab 额外有「已归档」虚拟分类（仅当存在归档会话）+ 按项目（Claude）或按月份（Codex）分组；每行带计数；Claude 模式悬停出现「删除项目」；底部「设置」按钮。 |
+| **`ProjectSidebar.tsx`** | 左侧侧栏：「全部」+ Codex tab 额外有「已归档」虚拟分类（仅当存在归档会话）+ 按项目（Claude）或按月份/项目（Codex 可切换）分组；每行带计数；Claude 模式悬停出现「删除项目」；Codex 模式顶部有「按月份 / 按项目」二选切换；底部「设置」按钮。 |
 | **`SessionList.tsx`** | 中间会话列表：搜索框 + 「仅看收藏」过滤。无查询时按当前 tab 渲染 `SessionListItem`；有查询（≥ 2 字）时切换到 `SearchHitItem` 渲染主进程返回的 `SearchHit[]`，状态条显示「N 个会话命中」。Codex 会话会接 `onArchive` prop 透传给卡片的归档按钮。 |
 | **`SessionListItem.tsx`** | 单条会话卡片：项目首字母色块头像、相对时间、预览、消息数、字节数、ID 前 8 位；悬停露出**在终端 resume（Terminal）/ 续聊简报（Sparkles）/ 归档（Archive，仅 codex）/ 收藏 / 删除**几个按钮。`session.archived === true` 时整卡 70% 透明 + 标题旁有「已归档」徽章，归档按钮变成 `ArchiveRestore`；`session.cwd` 为空时终端按钮 disabled。 |
 | **`SearchHitItem.tsx`** | 全文搜索结果卡片：与会话卡同构，但 preview 区换成最多 3 条命中事件（按 kind 着色的小图标 + `<mark>` 高亮的 excerpt） + 「N 处命中」徽章；点击带上首个命中事件 index 传给 `DetailDrawer`；悬停同样有续聊简报 + Codex 的归档按钮，归档状态由 hitMap 查到的 `SessionSummary.archived` 或 `sessionPath.includes('archived_sessions')` 推断。 |

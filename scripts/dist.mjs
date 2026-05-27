@@ -25,6 +25,32 @@ if (existsSync(envFile)) {
 }
 
 const publish = argv.includes('--publish') ? 'always' : 'never';
+const versionBumpByFlag = new Map([
+  ['-p', 'patch'],
+  ['-m', 'minor'],
+  ['-M', 'major']
+]);
+const releaseFlags = argv.slice(2).filter((flag) => versionBumpByFlag.has(flag));
+const unknownFlags = argv
+  .slice(2)
+  .filter((flag) => flag.startsWith('-') && flag !== '--publish' && !versionBumpByFlag.has(flag));
+
+if (unknownFlags.length > 0) {
+  console.error(`[dist] unknown flag: ${unknownFlags.join(', ')}`);
+  exit(1);
+}
+
+if (releaseFlags.length > 1) {
+  console.error(`[dist] 只能选择一种版本升级方式：-p, -m, -M`);
+  exit(1);
+}
+
+if (publish === 'never' && releaseFlags.length > 0) {
+  console.error('[dist] -p / -m / -M 只能和 --publish 一起使用');
+  exit(1);
+}
+
+const versionBump = publish === 'always' ? versionBumpByFlag.get(releaseFlags[0]) ?? 'patch' : null;
 
 if (publish === 'always' && !process.env.GH_TOKEN) {
   console.error(
@@ -54,6 +80,9 @@ function run(cmd, args) {
 }
 
 try {
+  if (versionBump) {
+    await run('npm', ['version', versionBump]);
+  }
   await run('npx', ['electron-vite', 'build']);
   await run('npx', ['electron-builder', '--win', '--x64', `--publish=${publish}`]);
 } catch (err) {

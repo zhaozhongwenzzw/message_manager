@@ -4,6 +4,8 @@ import type { Source } from '../types';
 
 type ProjectItem = { key: string; label: string; count: number };
 
+export type CodexGrouping = 'month' | 'project';
+
 type Props = {
   tab: Source;
   projects: ProjectItem[];
@@ -13,6 +15,9 @@ type Props = {
   onSelect: (key: string) => void;
   onDeleteProject?: (key: string, label: string, count: number) => void;
   onOpenSettings: () => void;
+  /** Codex-only: which grouping mode is active. Undefined hides the toggle. */
+  codexGrouping?: CodexGrouping;
+  onCodexGroupingChange?: (g: CodexGrouping) => void;
 };
 
 function avatarTone(label: string): string {
@@ -47,15 +52,59 @@ export default function ProjectSidebar({
   selectedKey,
   onSelect,
   onDeleteProject,
-  onOpenSettings
+  onOpenSettings,
+  codexGrouping,
+  onCodexGroupingChange
 }: Props): JSX.Element {
+  const showCodexToggle =
+    tab === 'codex' && codexGrouping != null && onCodexGroupingChange != null;
+  const headerIcon =
+    tab === 'claude' ? (
+      <Folder size={12} />
+    ) : codexGrouping === 'project' ? (
+      <Folder size={12} />
+    ) : (
+      <Calendar size={12} />
+    );
+  const headerLabel =
+    tab === 'claude' ? '项目' : codexGrouping === 'project' ? '项目' : '按月份';
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-line bg-surface-sub">
       <div className="flex items-center gap-2 px-5 pt-5 pb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-5">
-        {tab === 'claude' ? <Folder size={12} /> : <Calendar size={12} />}
-        <span>{tab === 'claude' ? '项目' : '按月份'}</span>
+        {headerIcon}
+        <span>{headerLabel}</span>
         <span className="ml-auto text-ink-5">{projects.length}</span>
       </div>
+      {showCodexToggle && (
+        <div className="mx-3 mb-2 flex items-center gap-1 rounded-md border border-line bg-surface p-0.5 text-[11px]">
+          <button
+            onClick={() => onCodexGroupingChange!('month')}
+            className={clsx(
+              'flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 transition',
+              codexGrouping === 'month'
+                ? 'bg-brand-50 text-brand-700'
+                : 'text-ink-4 hover:text-ink-1'
+            )}
+            title="按月份分组"
+          >
+            <Calendar size={11} />
+            按月份
+          </button>
+          <button
+            onClick={() => onCodexGroupingChange!('project')}
+            className={clsx(
+              'flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 transition',
+              codexGrouping === 'project'
+                ? 'bg-brand-50 text-brand-700'
+                : 'text-ink-4 hover:text-ink-1'
+            )}
+            title="按项目（cwd）分组"
+          >
+            <Folder size={11} />
+            按项目
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-2 pt-1 pb-3">
         <SidebarRow
           icon={<Inbox size={14} />}

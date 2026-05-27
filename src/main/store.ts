@@ -102,6 +102,9 @@ export type AppConfig = {
    *  default ~/.claude-manager/trash. Changing this does NOT move existing
    *  items — old trashed files remain at their original location. */
   trashDir?: string;
+  /** Codex sidebar grouping. 'month' (default) buckets by YYYY-MM;
+   *  'project' buckets by session cwd (sessions without cwd fall under "未知项目"). */
+  codexGrouping?: 'month' | 'project';
   llm?: LlmConfig;
   terminal?: TerminalConfig;
 };
@@ -118,6 +121,7 @@ const DEFAULT_CONFIG: AppConfig = {
   windowBounds: { width: 1400, height: 900 },
   showStarredOnly: false,
   appearance: 'system',
+  codexGrouping: 'month',
   llm: DEFAULT_LLM_CONFIG
 };
 
