@@ -7,8 +7,8 @@
 //   !include: could not find: "C:\Windows\TEMP\nstXXXX.tmp"
 // Pointing TEMP/TMP at a directory inside the project avoids the issue.
 
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { argv, exit, platform } from 'node:process';
 
@@ -79,7 +79,68 @@ function run(cmd, args) {
   });
 }
 
+function gitCapture(args) {
+  const r = spawnSync('git', args, {
+    cwd: projectRoot,
+    encoding: 'utf-8',
+    shell: platform === 'win32'
+  });
+  if (r.status !== 0) return '';
+  return (r.stdout || '').trim();
+}
+
+/**
+ * Build release notes from commits since the previous semver tag.
+ *
+ * - We run BEFORE `npm version`, so HEAD is the last real feature commit and
+ *   the "previous tag" is the latest `v*` tag (i.e. the last shipped version).
+ * - Commits whose message is just a bare semver ("0.3.3" — the auto-commit
+ *   `npm version` creates) are filtered out: they're release housekeeping,
+ *   not changelog material.
+ * - Spec/scratch commits (`docs(spec):`) are also dropped — internal design
+ *   docs aren't useful to end users.
+ * - Output is plain markdown bullets so it renders in both GitHub release
+ *   and the in-app update dialog (react-markdown).
+ */
+function buildReleaseNotes() {
+  // Find the most recent semver tag. If there is none (first release ever),
+  // fall back to the last 20 commits as the "history".
+  const prevTag = gitCapture(['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*']);
+  const range = prevTag ? `${prevTag}..HEAD` : 'HEAD~20..HEAD';
+  const raw = gitCapture(['log', range, '--no-merges', '--pretty=format:%s']);
+  if (!raw) return null;
+
+  const bareSemver = /^v?\d+\.\d+\.\d+$/;
+  const lines = raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !bareSemver.test(l))
+    .filter((l) => !l.startsWith('docs(spec):'));
+
+  if (lines.length === 0) return null;
+
+  const headerRange = prevTag ? `${prevTag} → HEAD` : '初始版本';
+  return [`## 更新内容（${headerRange}）`, '', ...lines.map((l) => `- ${l}`), ''].join('\n');
+}
+
 try {
+  // Generate release notes BEFORE bumping version — `npm version` creates an
+  // empty "X.Y.Z" commit, which we want to exclude from the diff.
+  if (publish === 'always') {
+    const notes = buildReleaseNotes();
+    const notesPath = resolve(projectRoot, 'RELEASE_NOTES.md');
+    if (notes) {
+      writeFileSync(notesPath, notes, 'utf-8');
+      console.log(`[dist] wrote ${notesPath} (${notes.split('\n').length} lines)`);
+    } else {
+      // electron-builder will silently skip releaseNotesFile if it doesn't
+      // exist, but a stub keeps the GitHub release body non-empty.
+      writeFileSync(notesPath, '## 更新内容\n\n（无变更说明）\n', 'utf-8');
+      console.log('[dist] no commits in range; wrote stub RELEASE_NOTES.md');
+    }
+  }
+
   if (versionBump) {
     await run('npm', ['version', versionBump]);
   }
