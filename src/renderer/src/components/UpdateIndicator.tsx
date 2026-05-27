@@ -79,6 +79,19 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
     setOpen(false);
   }
 
+  // Default-hide the Header button. Only surface it when there's something
+  // the user genuinely needs to see (new version, download progress, install
+  // ready, retryable backend hiccup). idle / checking / not-available are
+  // background noise — the Settings → About section handles those.
+  const visible =
+    status.phase === 'available' ||
+    status.phase === 'downloading' ||
+    status.phase === 'downloaded' ||
+    status.phase === 'pending-publish' ||
+    status.phase === 'error';
+
+  if (!visible) return <></>;
+
   const indicator = buildIndicator(status, theme);
 
   return (
@@ -170,10 +183,10 @@ export default function UpdateIndicator({ theme }: Props): JSX.Element {
           <div className="mt-5 flex items-center justify-end gap-2">
             <button
               onClick={handleCheck}
-              disabled={checking || status.phase === 'checking' || status.phase === 'downloading'}
+              disabled={checking || status.phase === 'downloading'}
               className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-3 transition hover:border-line-strong hover:text-ink-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {checking || status.phase === 'checking' ? '检查中…' : '检查更新'}
+              {checking ? '检查中…' : '检查更新'}
             </button>
             {status.phase === 'available' && (
               <>

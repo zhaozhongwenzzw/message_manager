@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { promises as fs } from 'node:fs';
 import { scanClaude, scanCodex } from './scanner';
 import { readSession } from './reader';
@@ -98,6 +98,8 @@ async function scheduleSyncFromScans(
 }
 
 export function registerIpc(): void {
+  ipcMain.handle('app:version', () => app.getVersion());
+
   ipcMain.handle('scan:claude', async () => {
     const projects = await scanClaude();
     void scheduleSyncFromScans(projects, null);

@@ -31,6 +31,7 @@ if (typeof window === 'undefined' || !window.api) {
 }
 
 export const api = {
+  appVersion: () => window.api.appVersion() as Promise<string>,
   scanClaude: () => window.api.scanClaude() as Promise<ClaudeProject[]>,
   scanCodex: () => window.api.scanCodex() as Promise<SessionSummary[]>,
   readSession: (path: string) => window.api.readSession(path) as Promise<NormEvent[]>,

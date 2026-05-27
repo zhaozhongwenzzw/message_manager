@@ -64,6 +64,7 @@
 | `codex:unarchive` `{ path }` | 反向：从 archived_sessions/ 移回 sessions/ |
 | `terminal:open` `{ source, sessionPath, cwd? }` | 在系统默认终端里 resume 会话（`claude --resume <id>` 或 `codex resume <id>`） |
 | `dialog:pick-file` `{ defaultPath?, title?, filters? }` | 弹原生文件选择器（用于设置里选 CLI 路径） |
+| `app:version` | 返回 `app.getVersion()`（package.json 里的 version），用于设置「关于」分区显示当前版本 |
 | `star:list` | 拉所有收藏 |
 | `star:toggle` `{ path, starred }` | 切换收藏 |
 | `config:get` / `config:set` | 读写 `config.json` |
@@ -246,8 +247,9 @@ Tailwind base + 自定义 CSS 变量（白/暗主题切换、`bg-canvas/surface/
 | **`settings/SearchIndexSection.tsx`** | 搜索索引状态：已索引会话数 / 事件数 / 上次构建时间，构建中显示进度 + spinner，「重建索引」按钮带 confirm；自动轮询 building 状态。 |
 | **`settings/LlmSection.tsx`** | AI 助手配置：启用 toggle、Base URL、Model、上下文窗口数字输入 + 快捷预设（8k/32k/128k/200k/1M）、API Key 输入/掩码显示/清除、测试连接按钮 + 结果横条；key 通过 safeStorage 加密。 |
 | **`settings/TerminalSection.tsx`** | 终端配置：Claude / Codex CLI 绝对路径输入框 + 「选择」原生文件选择器；留空走 PATH。底部展示当前自动使用的平台默认终端列表。改动直接 patch 到 `AppConfig.terminal` 子字段，走 generic `config:set`。 |
+| **`settings/AboutSection.tsx`** | 关于 / 检查更新：App 信息卡（名称 + 版本号，从 `app:version` IPC 拿）、当前更新状态摘要（idle / 已是最新 / 可更新 / 下载中 / 可安装 / 待发布 / 错误）+ 「检查更新」按钮、动作按钮（下载 / 重启安装 / 重试），下载时内嵌进度条与速率，提供 release notes 渲染（react-markdown）。底部链接区：GitHub 仓库 / 历史发布 / 打开应用数据目录。Header 的 `UpdateIndicator` 默认隐藏，**关于分区是检查更新的唯一稳定入口**。 |
 | **`SummarizeDialog.tsx`** | AI 续聊简报弹窗。打开时拉 `llmConfigGet`，未配置则提示跳设置；否则调 `llm:summarize:start` 拿 streamId，订阅 `llm:stream` 累积事件。**动态时间线**：初始只有 `reading + preparing`，`preparing` done 时根据 `chunkCount` 动态追加 `mapping`（多块）+ `generating`，每步带耗时 + meta；mapping 阶段渲染进度条（done/total）。中部纯文本 pre 流式输出 + 闪烁光标；底部按钮：取消（运行中）/ 重新生成 / 保存为 .md（走原生 `dialog:save-file`）/ 复制（带 1.5s 已复制提示）。关闭即调 cancel 阻止扣费。 |
-| **`UpdateIndicator.tsx`** | Header 上的更新指示器 + 弹窗。订阅 `updater:status`，按 phase 切换图标/文案/动作按钮：`available` 显示「跳过此版本」+「下载更新」；`downloading` 显示进度条；`downloaded` 显示「立即重启并安装」；`pending-publish` 显示「重试下载」；同版本被「跳过」后下次启动不再自动弹窗（但 Header 图标常驻可手动打开）。 |
+| **`UpdateIndicator.tsx`** | Header 上的更新指示器 + 弹窗。订阅 `updater:status`，**默认隐藏**（idle/checking/not-available 时返回 null）；只在 phase ∈ `{available, downloading, downloaded, pending-publish, error}` 时显示按钮 —— 平时不打扰用户，需要关注（有可下载/可装/出错的内容）才冒出来。按钮可手动点开弹窗：`available` 显示「跳过此版本」+「下载更新」；`downloading` 显示进度条；`downloaded` 显示「立即重启并安装」；`pending-publish` 显示「重试下载」；同版本被「跳过」后下次启动不再自动弹窗（但 phase 保持时按钮仍在）。检查更新的稳定入口在「设置 → 关于」。 |
 | **`TrashView.tsx`** | 整页回收站视图（覆盖主视图区域）。顶部工具栏含返回 / 计数 / 在文件管理器中打开 / 刷新 / 清空回收站；左侧筛选「全部 / Claude / Codex / 整个项目」；中间搜索框 + 列表 + 多选状态下浮出的批量操作栏（恢复 / 彻底删除 / 取消选择）；内联 `ConflictDialog` 负责恢复冲突时三选项弹窗（覆盖 / 重命名 / 取消），批量恢复时第一次选择会自动应用到剩余项。 |
 | **`TrashListItem.tsx`** | 单条回收项卡片：左侧 checkbox + 头像色块（项目用 Folder 紫色，会话用首字母随机色）；标题 + 类型徽章（整个项目 / Claude / Codex）+ 删除时间；副信息显示预览/路径/大小/消息数；右侧 「恢复」「彻底删除」按钮。 |
 | **`ConfirmDialog.tsx`** | `ConfirmProvider` + `useConfirm()`：组件树任意位置调 `await confirm({ title, description, confirmLabel, tone })` 返回 `Promise<boolean>`。tone 控制 danger（红删除按钮）/brand（绿色确认按钮）。 |

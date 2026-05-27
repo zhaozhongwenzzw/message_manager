@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 const api = {
+  appVersion: () => ipcRenderer.invoke('app:version'),
   scanClaude: () => ipcRenderer.invoke('scan:claude'),
   scanCodex: () => ipcRenderer.invoke('scan:codex'),
   readSession: (path: string) => ipcRenderer.invoke('read:session', { path }),
