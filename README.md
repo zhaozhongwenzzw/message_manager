@@ -10,6 +10,8 @@
 
 ## 为什么需要
 
+![Why Recall](docs/images/recall-anime-why-need-it-v4.png)
+
 如果你和我一样长期在用 Claude Code / Codex CLI，你的 `~/.claude/projects/` 和 `~/.codex/sessions/` 下应该已经堆了几百上千条 `.jsonl`。两套工具的目录结构、文件格式、归类逻辑都不一样，原生没办法：
 - 跨工具一起浏览
 - 按内容全文搜索（不只是文件名）
