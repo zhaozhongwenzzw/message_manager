@@ -1,4 +1,4 @@
-import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Command, RefreshCw, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Source } from '../types';
 import claudeIcon from '@assets/image/claude-color.svg';
@@ -10,6 +10,7 @@ type Props = {
   onTabChange: (t: Source) => void;
   onRefresh: () => void;
   onToggleTrash: () => void;
+  onOpenPalette: () => void;
   view: 'main' | 'trash';
   loading: boolean;
   counts: { claude: number; codex: number };
@@ -20,6 +21,7 @@ export default function Header({
   onTabChange,
   onRefresh,
   onToggleTrash,
+  onOpenPalette,
   view,
   loading,
   counts
@@ -65,6 +67,16 @@ export default function Header({
 
       <div className="flex items-center gap-2">
         <UpdateIndicator theme={tab} />
+        <button
+          onClick={onOpenPalette}
+          title="命令面板 (Ctrl/Cmd+K)"
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-medium text-ink-3 transition hover:border-line-strong hover:text-ink-1"
+        >
+          <Command size={13} />
+          <span className="rounded border border-line bg-surface-sub px-1 py-0.5 font-mono text-[10px] text-ink-5">
+            ⌘K
+          </span>
+        </button>
         <IconButton title="重新扫描" onClick={onRefresh} disabled={loading || inTrash}>
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </IconButton>

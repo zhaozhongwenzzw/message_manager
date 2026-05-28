@@ -280,3 +280,18 @@ body {
 .dialog-popup[data-state='open'] {
   animation: popupZoomIn 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* Top-anchored popup (CommandPalette) — only X is centered, so the zoom
+   keyframe above would briefly snap the popup upward. Use an X-only variant. */
+@keyframes popupSlideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+.dialog-popup-top[data-state='open'] {
+  animation: popupSlideDown 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}

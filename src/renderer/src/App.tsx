@@ -8,7 +8,9 @@ import DetailDrawer from './components/DetailDrawer';
 import SettingsDialog from './components/SettingsDialog';
 import SummarizeDialog from './components/SummarizeDialog';
 import TrashView from './components/TrashView';
+import CommandPalette from './components/CommandPalette';
 import { useConfirm } from './components/ConfirmDialog';
+import { focusSearchInput, useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { translateTerminalError } from './utils/terminalError';
 
 type ScanState = {
@@ -35,6 +37,8 @@ export default function App(): JSX.Element {
   const [codexGrouping, setCodexGrouping] = useState<'month' | 'project'>('month');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summarizeTarget, setSummarizeTarget] = useState<SessionSummary | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteInitialView, setPaletteInitialView] = useState<'commands' | 'shortcuts'>('commands');
   const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -377,6 +381,40 @@ export default function App(): JSX.Element {
     if (!res.ok) setError(translateTerminalError(res.error));
   }, []);
 
+  const switchTab = useCallback((t: Source) => {
+    setTab(t);
+    setSelectedProjectKey('__all__');
+    setView('main');
+  }, []);
+
+  const shortcutHandlers = useMemo(
+    () => ({
+      onTogglePalette: () => {
+        setPaletteInitialView('commands');
+        setPaletteOpen((o) => !o);
+      },
+      onOpenSettings: () => setSettingsOpen(true),
+      onSwitchClaude: () => switchTab('claude'),
+      onSwitchCodex: () => switchTab('codex'),
+      onFocusSearch: () => {
+        if (view === 'trash') return;
+        focusSearchInput();
+      },
+      onToggleTrash: () => setView((v) => (v === 'trash' ? 'main' : 'trash')),
+      onToggleStarredOnly: () => {
+        if (view === 'trash') return;
+        setStarredOnly((v) => !v);
+      },
+      onOpenShortcutsHelp: () => {
+        setPaletteInitialView('shortcuts');
+        setPaletteOpen(true);
+      }
+    }),
+    [switchTab, view]
+  );
+
+  useGlobalShortcuts(shortcutHandlers);
+
   return (
     <div className="flex h-full flex-col bg-canvas">
       <Header
@@ -387,6 +425,10 @@ export default function App(): JSX.Element {
         }}
         onRefresh={refresh}
         onToggleTrash={() => setView((v) => (v === 'trash' ? 'main' : 'trash'))}
+        onOpenPalette={() => {
+          setPaletteInitialView('commands');
+          setPaletteOpen(true);
+        }}
         view={view}
         loading={scan.loading}
         counts={{ claude: scan.claude.reduce((n, p) => n + p.sessions.length, 0), codex: scan.codex.length }}
@@ -467,6 +509,33 @@ export default function App(): JSX.Element {
           if (!o) setSummarizeTarget(null);
         }}
         onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        initialView={paletteInitialView}
+        tab={tab}
+        view={view}
+        starredOnly={starredOnly}
+        appearance={appearance}
+        codexGrouping={codexGrouping}
+        onTabChange={switchTab}
+        onToggleTrash={() => setView((v) => (v === 'trash' ? 'main' : 'trash'))}
+        onToggleStarredOnly={() => setStarredOnly((v) => !v)}
+        onAppearanceChange={setAppearance}
+        onCodexGroupingChange={(g) => {
+          setCodexGrouping(g);
+          setSelectedProjectKey('__all__');
+        }}
+        onRefresh={refresh}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onFocusSearch={() => {
+          if (view !== 'trash') focusSearchInput();
+        }}
+        onOpenSession={(s) => {
+          setOpenSession(s);
+          setOpenJump({});
+        }}
       />
     </div>
   );

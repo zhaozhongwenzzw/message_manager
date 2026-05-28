@@ -1,4 +1,5 @@
 import { Search, Star } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import type { SearchHit, SessionSummary } from '../types';
 import SessionListItem from './SessionListItem';
@@ -44,6 +45,16 @@ export default function SessionList({
   const inSearchMode = searchHits !== null;
   const hits = searchHits ?? [];
   const hitMap = new Map(sessions.map((s) => [s.path, s]));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onFocus = (): void => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    };
+    window.addEventListener('recall:focus-search', onFocus);
+    return () => window.removeEventListener('recall:focus-search', onFocus);
+  }, []);
 
   const visibleCount = inSearchMode ? hits.length : sessions.length;
   const placeholder = inSearchMode
@@ -56,6 +67,7 @@ export default function SessionList({
         <div className="flex flex-1 items-center gap-2 rounded-lg border border-line bg-surface-sub px-3 py-1.5 transition focus-within:border-brand focus-within:bg-surface">
           <Search size={14} className={clsx('text-ink-5', searching && 'animate-pulse text-brand-500')} />
           <input
+            ref={inputRef}
             type="text"
             placeholder={placeholder}
             value={query}
