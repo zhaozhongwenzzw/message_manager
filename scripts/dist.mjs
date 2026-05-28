@@ -50,7 +50,9 @@ if (publish === 'never' && releaseFlags.length > 0) {
   exit(1);
 }
 
-const versionBump = publish === 'always' ? versionBumpByFlag.get(releaseFlags[0]) ?? 'patch' : null;
+const versionBump = publish === 'always' && releaseFlags.length > 0
+  ? versionBumpByFlag.get(releaseFlags[0])
+  : null;
 
 if (publish === 'always' && !process.env.GH_TOKEN) {
   console.error(
@@ -103,14 +105,38 @@ function gitCapture(args) {
  *   and the in-app update dialog (react-markdown).
  */
 function buildReleaseNotes() {
-  // Find the most recent semver tag. If there is none (first release ever),
-  // fall back to the last 20 commits as the "history".
-  const prevTag = gitCapture(['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*']);
+  // Find the most recent semver tag that contains at least one meaningful
+  // commit (not just bare "X.Y.Z" version bumps). This handles the case where
+  // a prior release failed partway and left orphan tags behind — we skip over
+  // them so the notes include all real changes since the last *shipped* version.
+  const bareSemver = /^v?\d+\.\d+\.\d+$/;
+  const allTags = gitCapture(['tag', '--list', 'v[0-9]*', '--sort=-v:refname']);
+  const tags = allTags ? allTags.split('\n').map((t) => t.trim()).filter(Boolean) : [];
+
+  let prevTag = '';
+  for (const tag of tags) {
+    // Skip tags on HEAD itself (this is the release we're about to create).
+    const tagSha = gitCapture(['rev-parse', tag]);
+    const headSha = gitCapture(['rev-parse', 'HEAD']);
+    if (tagSha === headSha) continue;
+
+    // Check whether the range from this tag to HEAD has real commits.
+    const probe = gitCapture(['log', `${tag}..HEAD`, '--no-merges', '--pretty=format:%s']);
+    const meaningful = (probe || '')
+      .split('\n')
+      .filter(Boolean)
+      .filter((l) => !bareSemver.test(l.trim()))
+      .filter((l) => !l.trim().startsWith('docs(spec):'));
+    if (meaningful.length > 0) {
+      prevTag = tag;
+      break;
+    }
+  }
+
   const range = prevTag ? `${prevTag}..HEAD` : 'HEAD~20..HEAD';
   const raw = gitCapture(['log', range, '--no-merges', '--pretty=format:%s']);
   if (!raw) return null;
 
-  const bareSemver = /^v?\d+\.\d+\.\d+$/;
   const lines = raw
     .split('\n')
     .map((l) => l.trim())
@@ -125,6 +151,16 @@ function buildReleaseNotes() {
 }
 
 try {
+  // Fail fast if the working tree is dirty — `npm version` would commit+tag
+  // and then the subsequent build step might fail, leaving orphan tags behind.
+  if (versionBump) {
+    const dirty = gitCapture(['status', '--porcelain']);
+    if (dirty) {
+      console.error('[dist] Git 工作目录不干净，请先提交或 stash 再发布:\n' + dirty);
+      exit(1);
+    }
+  }
+
   // Generate release notes BEFORE bumping version — `npm version` creates an
   // empty "X.Y.Z" commit, which we want to exclude from the diff.
   if (publish === 'always') {
