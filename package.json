@@ -1,6 +1,6 @@
 {
   "name": "recall",
-  "version": "0.3.4",
+  "version": "1.0.0",
   "description": "Local desktop archive for Claude Code and Codex conversation history",
   "main": "out/main/index.js",
   "author": "local",
