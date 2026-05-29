@@ -79,7 +79,7 @@ export const api = {
   llmConfigSet: (args: Partial<LlmConfig> & { apiKey?: string }) =>
     window.api.llmConfigSet(args) as Promise<LlmConfig>,
   llmTestConnection: () => window.api.llmTestConnection() as Promise<LlmTestResult>,
-  llmSummarizeStart: (args: { sessionPath: string }) =>
+  llmSummarizeStart: (args: { sessionPath: string; format?: 'html' | 'markdown' }) =>
     window.api.llmSummarizeStart(args) as Promise<{ streamId: string }>,
   llmSummarizeCancel: (args: { streamId: string }) =>
     window.api.llmSummarizeCancel(args) as Promise<void>,

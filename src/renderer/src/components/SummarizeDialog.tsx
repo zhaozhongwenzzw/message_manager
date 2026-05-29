@@ -1,10 +1,15 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import {
   AlertCircle,
   Check,
+  Code2,
   Copy,
   Download,
+  FileText,
   Loader2,
   RefreshCw,
   Settings as SettingsIcon,
@@ -14,6 +19,9 @@ import {
 import clsx from 'clsx';
 import { api } from '../api';
 import type { LlmStreamEvent, SessionSummary } from '../types';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
+
+type SummaryFormat = 'html' | 'markdown';
 
 type Props = {
   open: boolean;
@@ -66,13 +74,19 @@ export default function SummarizeDialog({
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedPath, setSavedPath] = useState<string | null>(null);
+  const [format, setFormat] = useState<SummaryFormat>('html');
 
   const outputRef = useRef<HTMLDivElement>(null);
   const streamIdRef = useRef<string | null>(null);
+  const formatRef = useRef<SummaryFormat>('html');
 
   useEffect(() => {
     streamIdRef.current = streamId;
   }, [streamId]);
+
+  useEffect(() => {
+    formatRef.current = format;
+  }, [format]);
 
   // Auto-scroll output to bottom on token arrival
   useEffect(() => {
@@ -162,7 +176,10 @@ export default function SummarizeDialog({
         }
         if (cancelled) return;
         setNeedsSetup(false);
-        const r = await api.llmSummarizeStart({ sessionPath: session.path });
+        const fmt: SummaryFormat = cfg.summaryFormat === 'markdown' ? 'markdown' : 'html';
+        setFormat(fmt);
+        formatRef.current = fmt;
+        const r = await api.llmSummarizeStart({ sessionPath: session.path, format: fmt });
         if (cancelled) {
           void api.llmSummarizeCancel({ streamId: r.streamId }).catch(() => {});
           return;
@@ -200,12 +217,24 @@ export default function SummarizeDialog({
     setCopied(false);
     setSavedPath(null);
     try {
-      const r = await api.llmSummarizeStart({ sessionPath: session.path });
+      const r = await api.llmSummarizeStart({
+        sessionPath: session.path,
+        format: formatRef.current
+      });
       setStreamId(r.streamId);
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setDone(true);
     }
+  }
+
+  // Switch output format → persist preference + regenerate with new prompt.
+  async function handleFormatChange(next: SummaryFormat): Promise<void> {
+    if (next === formatRef.current) return;
+    setFormat(next);
+    formatRef.current = next;
+    void api.llmConfigSet({ summaryFormat: next }).catch(() => {});
+    await handleRegenerate();
   }
 
   async function handleCancel(): Promise<void> {
@@ -228,14 +257,19 @@ export default function SummarizeDialog({
     if (!session || !output) return;
     setSaving(true);
     try {
-      const defaultName = `${session.projectLabel || 'session'}-续聊简报.md`.replace(
+      const ext = format === 'html' ? 'html' : 'md';
+      const defaultName = `${session.projectLabel || 'session'}-续聊简报.${ext}`.replace(
         /[\\/:*?"<>|]/g,
         '_'
       );
       const res = await api.saveFile({
         title: '保存续聊简报',
         defaultPath: defaultName,
-        content: output
+        content: output,
+        filters:
+          format === 'html'
+            ? [{ name: 'HTML', extensions: ['html'] }]
+            : [{ name: 'Markdown', extensions: ['md'] }]
       });
       if (res?.path) setSavedPath(res.path);
     } catch {
@@ -294,6 +328,40 @@ export default function SummarizeDialog({
             </div>
           ) : (
             <>
+              {/* Format toggle */}
+              <div className="flex items-center gap-2 border-b border-line px-5 py-2.5">
+                <span className="text-[11.5px] text-ink-4">预览格式</span>
+                <div className="flex items-center gap-1 rounded-md border border-line bg-surface-sub p-0.5 text-[11.5px]">
+                  <button
+                    onClick={() => void handleFormatChange('html')}
+                    className={clsx(
+                      'flex items-center gap-1 rounded px-2 py-1 transition',
+                      format === 'html'
+                        ? 'bg-brand-50 text-brand-700'
+                        : 'text-ink-4 hover:text-ink-1'
+                    )}
+                    title="LLM 输出 HTML，按网页样式展示"
+                  >
+                    <Code2 size={12} />
+                    HTML
+                  </button>
+                  <button
+                    onClick={() => void handleFormatChange('markdown')}
+                    className={clsx(
+                      'flex items-center gap-1 rounded px-2 py-1 transition',
+                      format === 'markdown'
+                        ? 'bg-brand-50 text-brand-700'
+                        : 'text-ink-4 hover:text-ink-1'
+                    )}
+                    title="LLM 输出 Markdown"
+                  >
+                    <FileText size={12} />
+                    Markdown
+                  </button>
+                </div>
+                <span className="text-[11px] text-ink-5">切换会用对应格式重新生成</span>
+              </div>
+
               {/* Phases timeline */}
               <div className="border-b border-line px-5 py-3">
                 <ol className="space-y-2">
@@ -314,10 +382,24 @@ export default function SummarizeDialog({
                     <div className="mt-1 font-mono text-[11.5px]">{error}</div>
                   </div>
                 ) : output ? (
-                  <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-ink-1">
-                    {output}
-                    {!done && <span className="ml-0.5 inline-block h-3.5 w-1.5 -translate-y-px animate-pulse bg-brand-500 align-middle" />}
-                  </pre>
+                  done && format === 'markdown' ? (
+                    <div className="markdown text-[13px] leading-relaxed text-ink-1">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                        {output}
+                      </ReactMarkdown>
+                    </div>
+                  ) : done && format === 'html' ? (
+                    <div
+                      className="markdown text-[13px] leading-relaxed text-ink-1"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(output) }}
+                    />
+                  ) : (
+                    // Streaming: show raw text (half-built HTML/MD renders broken)
+                    <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-ink-1">
+                      {output}
+                      {!done && <span className="ml-0.5 inline-block h-3.5 w-1.5 -translate-y-px animate-pulse bg-brand-500 align-middle" />}
+                    </pre>
+                  )
                 ) : (
                   <div className="flex h-full items-center justify-center text-[12px] text-ink-5">
                     {running ? '等待 LLM 响应...' : '尚未开始'}
@@ -355,7 +437,7 @@ export default function SummarizeDialog({
                       className="flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-[12.5px] text-ink-3 transition hover:border-brand hover:text-brand-600 disabled:opacity-50"
                     >
                       {saving ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                      保存为 .md
+                      {format === 'html' ? '保存为 .html' : '保存为 .md'}
                     </button>
                     <button
                       onClick={() => void handleCopy()}

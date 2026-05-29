@@ -121,6 +121,7 @@ export type LlmConfig = {
   baseUrl: string;
   model: string;
   contextWindow: number;
+  summaryFormat?: 'html' | 'markdown';
   hasApiKey?: boolean;
 };
 
@@ -141,6 +142,7 @@ export type LlmStreamEvent =
       type: 'done';
       streamId: string;
       fullText: string;
+      format?: 'html' | 'markdown';
       usage?: { inputTokens?: number; outputTokens?: number };
     }
   | { type: 'error'; streamId: string; message: string };

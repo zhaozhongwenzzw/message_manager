@@ -83,6 +83,8 @@ export type LlmConfig = {
   model: string;
   /** 上下文窗口（token），用于决定是否启用 map-reduce 分块。默认 128k。 */
   contextWindow: number;
+  /** 续聊简报的默认输出格式。默认 'html'。 */
+  summaryFormat?: 'html' | 'markdown';
   /** Set by the store when reading; never written from outside. */
   hasApiKey?: boolean;
 };
@@ -115,7 +117,8 @@ const DEFAULT_LLM_CONFIG: LlmConfig = {
   enabled: false,
   baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-4o-mini',
-  contextWindow: 128_000
+  contextWindow: 128_000,
+  summaryFormat: 'html'
 };
 
 const DEFAULT_CONFIG: AppConfig = {

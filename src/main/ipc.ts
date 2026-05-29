@@ -275,12 +275,13 @@ export function registerIpc(): void {
     (_e, args: Partial<LlmConfig> & { apiKey?: string }) => setLlmConfig(args)
   );
   ipcMain.handle('llm:test-connection', () => testConnection());
-  ipcMain.handle('llm:summarize:start', async (e, args: { sessionPath: string }) => {
+  ipcMain.handle('llm:summarize:start', async (e, args: { sessionPath: string; format?: 'html' | 'markdown' }) => {
     const streamId = newStreamId();
     // Fire and forget; events stream over llm:stream
     void summarizeSession({
       streamId,
       sessionPath: args.sessionPath,
+      format: args.format,
       sender: e.sender
     });
     return { streamId };
