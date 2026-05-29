@@ -1,13 +1,20 @@
-import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Terminal, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, StickyNote, Tag, Terminal, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { SessionSummary } from '../types';
+import { avatarTone, tagChipTone } from '../utils/tone';
+import TagNotePopover from './TagNotePopover';
 
 type Props = {
   session: SessionSummary;
   starred: boolean;
+  tags: string[];
+  note: string;
+  allTags: string[];
   onOpen: () => void;
   onDelete: () => void;
   onToggleStar: () => void;
+  onSetTags: (tags: string[]) => void;
+  onSetNote: (note: string) => void;
   onSummarize?: () => void;
   onArchive?: () => void; // codex only
   onOpenTerminal?: () => void;
@@ -38,23 +45,7 @@ function formatSize(bytes: number): string {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
-function avatarTone(label: string): string {
-  const palette = [
-    'bg-brand-50 text-brand-700',
-    'bg-info-50 text-info-600',
-    'bg-warn-50 text-warn-600',
-    'bg-agent-50 text-agent-600',
-    'bg-rose-50 text-rose-600',
-    'bg-sky-50 text-sky-600',
-    'bg-teal-50 text-teal-600',
-    'bg-indigo-50 text-indigo-600'
-  ];
-  let h = 0;
-  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
-}
-
-function initials(label: string): string {
+function avatarInitial(label: string): string {
   const trimmed = label.trim();
   if (!trimmed) return '?';
   return /[a-zA-Z]/.test(trimmed[0]) ? trimmed[0].toUpperCase() : trimmed[0];
@@ -63,9 +54,14 @@ function initials(label: string): string {
 export default function SessionListItem({
   session,
   starred,
+  tags,
+  note,
+  allTags,
   onOpen,
   onDelete,
   onToggleStar,
+  onSetTags,
+  onSetNote,
   onSummarize,
   onArchive,
   onOpenTerminal
@@ -73,6 +69,7 @@ export default function SessionListItem({
   const preview = session.preview || '(空会话)';
   const isArchived = !!session.archived;
   const hasCwd = !!session.cwd?.trim();
+  const hasMeta = tags.length > 0 || !!note.trim();
   return (
     <div
       onClick={onOpen}
@@ -87,7 +84,7 @@ export default function SessionListItem({
           avatarTone(session.projectLabel)
         )}
       >
-        {initials(session.projectLabel)}
+        {avatarInitial(session.projectLabel)}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -115,6 +112,27 @@ export default function SessionListItem({
             {session.id.slice(0, 8)}
           </span>
         </div>
+        {hasMeta && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            {tags.map((t) => (
+              <span
+                key={t}
+                className={clsx(
+                  'inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium',
+                  tagChipTone(t)
+                )}
+              >
+                {t}
+              </span>
+            ))}
+            {note.trim() && (
+              <span className="inline-flex max-w-full items-center gap-1 text-[11px] italic text-ink-4">
+                <StickyNote size={10} className="shrink-0" />
+                <span className="truncate">{note.trim()}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -160,6 +178,26 @@ export default function SessionListItem({
             {isArchived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
           </button>
         )}
+        <TagNotePopover
+          tags={tags}
+          note={note}
+          allTags={allTags}
+          onSetTags={onSetTags}
+          onSetNote={onSetNote}
+        >
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className={clsx(
+              'flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-agent-50 hover:text-agent-600',
+              hasMeta
+                ? 'text-agent-600'
+                : 'text-ink-5 opacity-0 group-hover:opacity-100'
+            )}
+            title="标签 / 备注"
+          >
+            <Tag size={15} />
+          </button>
+        </TagNotePopover>
         <button
           onClick={(e) => {
             e.stopPropagation();

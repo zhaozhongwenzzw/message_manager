@@ -14,6 +14,10 @@ const api = {
   listStars: () => ipcRenderer.invoke('star:list'),
   toggleStar: (path: string, starred: boolean) =>
     ipcRenderer.invoke('star:toggle', { path, starred }),
+  listTags: () => ipcRenderer.invoke('tags:list'),
+  setTags: (path: string, tags: string[]) => ipcRenderer.invoke('tags:set', { path, tags }),
+  listNotes: () => ipcRenderer.invoke('notes:list'),
+  setNote: (path: string, note: string) => ipcRenderer.invoke('notes:set', { path, note }),
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (cfg: unknown) => ipcRenderer.invoke('config:set', cfg),
   openTrash: () => ipcRenderer.invoke('open:trash'),

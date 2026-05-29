@@ -1,8 +1,10 @@
-import { Folder, Inbox, Calendar, Trash2, Settings, Archive } from 'lucide-react';
+import { Folder, Inbox, Calendar, Trash2, Settings, Archive, Tag } from 'lucide-react';
 import clsx from 'clsx';
 import type { Source } from '../types';
+import { avatarTone, tagDotTone } from '../utils/tone';
 
 type ProjectItem = { key: string; label: string; count: number };
+type TagItem = { label: string; count: number };
 
 export type CodexGrouping = 'month' | 'project';
 
@@ -18,23 +20,10 @@ type Props = {
   /** Codex-only: which grouping mode is active. Undefined hides the toggle. */
   codexGrouping?: CodexGrouping;
   onCodexGroupingChange?: (g: CodexGrouping) => void;
+  tags: TagItem[];
+  selectedTag: string | null;
+  onSelectTag: (tag: string | null) => void;
 };
-
-function avatarTone(label: string): string {
-  const palette = [
-    'bg-brand-50 text-brand-700',
-    'bg-info-50 text-info-600',
-    'bg-warn-50 text-warn-600',
-    'bg-agent-50 text-agent-600',
-    'bg-rose-50 text-rose-600',
-    'bg-sky-50 text-sky-600',
-    'bg-teal-50 text-teal-600',
-    'bg-indigo-50 text-indigo-600'
-  ];
-  let h = 0;
-  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
-}
 
 function initials(label: string): string {
   const trimmed = label.trim();
@@ -54,7 +43,10 @@ export default function ProjectSidebar({
   onDeleteProject,
   onOpenSettings,
   codexGrouping,
-  onCodexGroupingChange
+  onCodexGroupingChange,
+  tags,
+  selectedTag,
+  onSelectTag
 }: Props): JSX.Element {
   const showCodexToggle =
     tab === 'codex' && codexGrouping != null && onCodexGroupingChange != null;
@@ -140,6 +132,33 @@ export default function ProjectSidebar({
         {projects.length === 0 && (
           <div className="px-4 py-6 text-center text-xs text-ink-5">没有发现会话</div>
         )}
+        {tags.length > 0 && (
+          <>
+            <div className="mt-3 mb-1.5 flex items-center gap-2 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-ink-5">
+              <Tag size={11} />
+              <span>标签</span>
+              {selectedTag && (
+                <button
+                  onClick={() => onSelectTag(null)}
+                  className="ml-auto text-[10px] font-medium normal-case tracking-normal text-ink-4 transition hover:text-ink-1"
+                >
+                  清除
+                </button>
+              )}
+            </div>
+            {tags.map((t) => (
+              <SidebarRow
+                key={t.label}
+                dot={tagDotTone(t.label)}
+                label={t.label}
+                count={t.count}
+                active={selectedTag === t.label}
+                onClick={() => onSelectTag(selectedTag === t.label ? null : t.label)}
+                tone="bg-ink-1/5 text-ink-2"
+              />
+            ))}
+          </>
+        )}
       </div>
       <div className="border-t border-line px-2 py-2">
         <button
@@ -160,6 +179,7 @@ export default function ProjectSidebar({
 function SidebarRow({
   icon,
   avatar,
+  dot,
   label,
   count,
   active,
@@ -169,6 +189,7 @@ function SidebarRow({
 }: {
   icon?: React.ReactNode;
   avatar?: string;
+  dot?: string;
   label: string;
   count: number;
   active: boolean;
@@ -187,14 +208,20 @@ function SidebarRow({
       onClick={onClick}
       title={label}
     >
-      <span
-        className={clsx(
-          'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold',
-          tone
-        )}
-      >
-        {avatar ?? icon}
-      </span>
+      {dot ? (
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+          <span className={clsx('h-2.5 w-2.5 rounded-full', dot)} />
+        </span>
+      ) : (
+        <span
+          className={clsx(
+            'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold',
+            tone
+          )}
+        >
+          {avatar ?? icon}
+        </span>
+      )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {onDelete ? (
         <>

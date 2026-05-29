@@ -1,12 +1,15 @@
-import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, Terminal, Trash2, User, Wrench } from 'lucide-react';
+import { Archive, ArchiveRestore, Hash, MessageSquare, Sparkles, Star, StickyNote, Terminal, Trash2, User, Wrench } from 'lucide-react';
 import clsx from 'clsx';
 import type { SearchHit, SearchMatch } from '../types';
 import { highlightTerms } from '../utils/highlight';
+import { avatarTone, tagChipTone } from '../utils/tone';
 
 type Props = {
   hit: SearchHit;
   query: string;
   starred: boolean;
+  tags: string[];
+  note: string;
   archived?: boolean;
   hasCwd?: boolean;
   onOpen: (firstMatchIndex?: number) => void;
@@ -29,22 +32,6 @@ function formatTime(ts?: number): string {
     minute: '2-digit',
     year: sameYear ? undefined : '2-digit'
   });
-}
-
-function avatarTone(label: string): string {
-  const palette = [
-    'bg-brand-50 text-brand-700',
-    'bg-info-50 text-info-600',
-    'bg-warn-50 text-warn-600',
-    'bg-agent-50 text-agent-600',
-    'bg-rose-50 text-rose-600',
-    'bg-sky-50 text-sky-600',
-    'bg-teal-50 text-teal-600',
-    'bg-indigo-50 text-indigo-600'
-  ];
-  let h = 0;
-  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
 }
 
 function initials(label: string): string {
@@ -74,6 +61,8 @@ export default function SearchHitItem({
   hit,
   query,
   starred,
+  tags,
+  note,
   archived,
   hasCwd,
   onOpen,
@@ -84,6 +73,7 @@ export default function SearchHitItem({
   onOpenTerminal
 }: Props): JSX.Element {
   const top = hit.matches.slice(0, 3);
+  const hasMeta = tags.length > 0 || !!note.trim();
   return (
     <div
       onClick={() => onOpen(hit.matches[0]?.eventIndex)}
@@ -152,6 +142,27 @@ export default function SearchHitItem({
             {hit.sessionPath.split(/[\\/]/).pop()?.slice(0, 12)}
           </span>
         </div>
+        {hasMeta && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            {tags.map((t) => (
+              <span
+                key={t}
+                className={clsx(
+                  'inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium',
+                  tagChipTone(t)
+                )}
+              >
+                {t}
+              </span>
+            ))}
+            {note.trim() && (
+              <span className="inline-flex max-w-full items-center gap-1 text-[11px] italic text-ink-4">
+                <StickyNote size={10} className="shrink-0" />
+                <span className="truncate">{note.trim()}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

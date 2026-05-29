@@ -18,9 +18,18 @@ type ScanState = {
   claude: ClaudeProject[];
   codex: SessionSummary[];
   stars: Record<string, boolean>;
+  tags: Record<string, string[]>;
+  notes: Record<string, string>;
 };
 
-const INITIAL_SCAN: ScanState = { loading: true, claude: [], codex: [], stars: {} };
+const INITIAL_SCAN: ScanState = {
+  loading: true,
+  claude: [],
+  codex: [],
+  stars: {},
+  tags: {},
+  notes: {}
+};
 
 export default function App(): JSX.Element {
   const [tab, setTab] = useState<Source>('claude');
@@ -29,6 +38,7 @@ export default function App(): JSX.Element {
   const [query, setQuery] = useState('');
   const [starredOnly, setStarredOnly] = useState(false);
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('__all__');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [openSession, setOpenSession] = useState<SessionSummary | null>(null);
   const [openJump, setOpenJump] = useState<{ eventIndex?: number; query?: string }>({});
   const [error, setError] = useState<string | null>(null);
@@ -70,12 +80,14 @@ export default function App(): JSX.Element {
   const refresh = useCallback(async () => {
     setScan((s) => ({ ...s, loading: true }));
     try {
-      const [claude, codex, stars] = await Promise.all([
+      const [claude, codex, stars, tags, notes] = await Promise.all([
         api.scanClaude(),
         api.scanCodex(),
-        api.listStars()
+        api.listStars(),
+        api.listTags(),
+        api.listNotes()
       ]);
-      setScan({ loading: false, claude, codex, stars });
+      setScan({ loading: false, claude, codex, stars, tags, notes });
       setError(null);
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -125,6 +137,27 @@ export default function App(): JSX.Element {
     () => scan.codex.filter((s) => s.archived).length,
     [scan.codex]
   );
+
+  // Tag → session count, scoped to the current tab. Drives the sidebar tag
+  // filter + the popover's all-tags suggestions.
+  const tagCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of allSessions) {
+      for (const t of scan.tags[s.path] ?? []) {
+        map.set(t, (map.get(t) ?? 0) + 1);
+      }
+    }
+    return [...map.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([label, count]) => ({ label, count }));
+  }, [allSessions, scan.tags]);
+
+  // Union of every tag across both sources, for popover autocomplete.
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const arr of Object.values(scan.tags)) for (const t of arr) set.add(t);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [scan.tags]);
 
   const projects = useMemo(() => {
     if (tab === 'claude') {
@@ -185,8 +218,9 @@ export default function App(): JSX.Element {
       }
     }
     if (starredOnly) list = list.filter((s) => scan.stars[s.path]);
+    if (selectedTag) list = list.filter((s) => (scan.tags[s.path] ?? []).includes(selectedTag));
     return list;
-  }, [allSessions, selectedProjectKey, starredOnly, scan.stars, tab, codexGrouping]);
+  }, [allSessions, selectedProjectKey, starredOnly, scan.stars, scan.tags, selectedTag, tab, codexGrouping]);
 
   // Full-text search: debounce 200ms, kick off when query is non-trivial.
   // 1 ASCII char or 1 CJK char alone is too noisy — require at least 2 chars
@@ -247,8 +281,10 @@ export default function App(): JSX.Element {
       );
     }
     if (starredOnly) list = list.filter((h) => scan.stars[h.sessionPath]);
+    if (selectedTag)
+      list = list.filter((h) => (scan.tags[h.sessionPath] ?? []).includes(selectedTag));
     return list;
-  }, [searchHits, selectedProjectKey, starredOnly, scan.stars, scan.codex, tab, codexGrouping]);
+  }, [searchHits, selectedProjectKey, starredOnly, scan.stars, scan.tags, scan.codex, selectedTag, tab, codexGrouping]);
 
   const onDelete = useCallback(
     async (s: SessionSummary) => {
@@ -271,6 +307,13 @@ export default function App(): JSX.Element {
       if (!ok) return;
       try {
         await api.deleteSession(s.source, s.path);
+        const dropMeta = (prev: ScanState): Pick<ScanState, 'tags' | 'notes'> => {
+          const tags = { ...prev.tags };
+          const notes = { ...prev.notes };
+          delete tags[s.path];
+          delete notes[s.path];
+          return { tags, notes };
+        };
         if (tab === 'claude') {
           setScan((prev) => ({
             ...prev,
@@ -278,13 +321,15 @@ export default function App(): JSX.Element {
               ...p,
               sessions: p.sessions.filter((x) => x.path !== s.path)
             })),
-            stars: { ...prev.stars, [s.path]: false }
+            stars: { ...prev.stars, [s.path]: false },
+            ...dropMeta(prev)
           }));
         } else {
           setScan((prev) => ({
             ...prev,
             codex: prev.codex.filter((x) => x.path !== s.path),
-            stars: { ...prev.stars, [s.path]: false }
+            stars: { ...prev.stars, [s.path]: false },
+            ...dropMeta(prev)
           }));
         }
         if (openSession?.path === s.path) setOpenSession(null);
@@ -307,6 +352,34 @@ export default function App(): JSX.Element {
       }
     },
     [scan.stars]
+  );
+
+  const onSetTags = useCallback(
+    async (s: SessionSummary, tags: string[]) => {
+      const prevTags = scan.tags[s.path] ?? [];
+      setScan((prev) => ({ ...prev, tags: { ...prev.tags, [s.path]: tags } }));
+      try {
+        await api.setTags(s.path, tags);
+      } catch (e: any) {
+        setScan((prev) => ({ ...prev, tags: { ...prev.tags, [s.path]: prevTags } }));
+        setError(`保存标签失败: ${e?.message ?? String(e)}`);
+      }
+    },
+    [scan.tags]
+  );
+
+  const onSetNote = useCallback(
+    async (s: SessionSummary, note: string) => {
+      const prevNote = scan.notes[s.path] ?? '';
+      setScan((prev) => ({ ...prev, notes: { ...prev.notes, [s.path]: note } }));
+      try {
+        await api.setNote(s.path, note);
+      } catch (e: any) {
+        setScan((prev) => ({ ...prev, notes: { ...prev.notes, [s.path]: prevNote } }));
+        setError(`保存备注失败: ${e?.message ?? String(e)}`);
+      }
+    },
+    [scan.notes]
   );
 
   const onDeleteProject = useCallback(
@@ -345,6 +418,8 @@ export default function App(): JSX.Element {
       if (s.source !== 'codex') return;
       const wasArchived = !!s.archived;
       const wasStarred = !!scan.stars[s.path];
+      const oldTags = scan.tags[s.path] ?? [];
+      const oldNote = scan.notes[s.path] ?? '';
       try {
         const res = wasArchived
           ? await api.codexUnarchive(s.path)
@@ -353,15 +428,39 @@ export default function App(): JSX.Element {
           await api.toggleStar(s.path, false).catch(() => {});
           await api.toggleStar(res.newPath, true).catch(() => {});
         }
-        setScan((prev) => ({
-          ...prev,
-          codex: prev.codex.map((x) =>
-            x.path === s.path ? { ...x, path: res.newPath, archived: !wasArchived } : x
-          ),
-          stars: wasStarred
-            ? { ...prev.stars, [s.path]: false, [res.newPath]: true }
-            : prev.stars
-        }));
+        // Metadata is keyed by absolute path; archiving changes the path, so
+        // migrate tags/notes to the new path or they'd dangle on the old one.
+        if (oldTags.length) {
+          await api.setTags(s.path, []).catch(() => {});
+          await api.setTags(res.newPath, oldTags).catch(() => {});
+        }
+        if (oldNote.trim()) {
+          await api.setNote(s.path, '').catch(() => {});
+          await api.setNote(res.newPath, oldNote).catch(() => {});
+        }
+        setScan((prev) => {
+          const tags = { ...prev.tags };
+          const notes = { ...prev.notes };
+          if (oldTags.length) {
+            delete tags[s.path];
+            tags[res.newPath] = oldTags;
+          }
+          if (oldNote.trim()) {
+            delete notes[s.path];
+            notes[res.newPath] = oldNote;
+          }
+          return {
+            ...prev,
+            codex: prev.codex.map((x) =>
+              x.path === s.path ? { ...x, path: res.newPath, archived: !wasArchived } : x
+            ),
+            stars: wasStarred
+              ? { ...prev.stars, [s.path]: false, [res.newPath]: true }
+              : prev.stars,
+            tags,
+            notes
+          };
+        });
         if (openSession?.path === s.path) {
           setOpenSession({ ...s, path: res.newPath, archived: !wasArchived });
         }
@@ -369,7 +468,7 @@ export default function App(): JSX.Element {
         setError(`${wasArchived ? '取消归档' : '归档'}失败: ${e?.message ?? String(e)}`);
       }
     },
-    [openSession, scan.stars]
+    [openSession, scan.stars, scan.tags, scan.notes]
   );
 
   const onOpenTerminal = useCallback(async (s: SessionSummary) => {
@@ -384,6 +483,7 @@ export default function App(): JSX.Element {
   const switchTab = useCallback((t: Source) => {
     setTab(t);
     setSelectedProjectKey('__all__');
+    setSelectedTag(null);
     setView('main');
   }, []);
 
@@ -422,6 +522,7 @@ export default function App(): JSX.Element {
         onTabChange={(t) => {
           setTab(t);
           setSelectedProjectKey('__all__');
+          setSelectedTag(null);
         }}
         onRefresh={refresh}
         onToggleTrash={() => setView((v) => (v === 'trash' ? 'main' : 'trash'))}
@@ -461,10 +562,16 @@ export default function App(): JSX.Element {
               // "全部" so we don't leave the user on a phantom bucket.
               setSelectedProjectKey('__all__');
             }}
+            tags={tagCounts}
+            selectedTag={selectedTag}
+            onSelectTag={setSelectedTag}
           />
           <SessionList
             sessions={filtered}
             stars={scan.stars}
+            tags={scan.tags}
+            notes={scan.notes}
+            allTags={allTags}
             query={query}
             onQuery={setQuery}
             starredOnly={starredOnly}
@@ -475,6 +582,8 @@ export default function App(): JSX.Element {
             }}
             onDelete={onDelete}
             onToggleStar={onToggleStar}
+            onSetTags={onSetTags}
+            onSetNote={onSetNote}
             onSummarize={(s) => setSummarizeTarget(s)}
             onArchive={onArchive}
             onOpenTerminal={onOpenTerminal}

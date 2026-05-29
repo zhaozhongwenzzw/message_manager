@@ -8,6 +8,9 @@ import SearchHitItem from './SearchHitItem';
 type Props = {
   sessions: SessionSummary[];
   stars: Record<string, boolean>;
+  tags: Record<string, string[]>;
+  notes: Record<string, string>;
+  allTags: string[];
   query: string;
   onQuery: (q: string) => void;
   starredOnly: boolean;
@@ -15,6 +18,8 @@ type Props = {
   onOpen: (s: SessionSummary, jumpToEvent?: number, highlightQuery?: string) => void;
   onDelete: (s: SessionSummary) => void;
   onToggleStar: (s: SessionSummary) => void;
+  onSetTags: (s: SessionSummary, tags: string[]) => void;
+  onSetNote: (s: SessionSummary, note: string) => void;
   onSummarize: (s: SessionSummary) => void;
   onArchive?: (s: SessionSummary) => void;
   onOpenTerminal?: (s: SessionSummary) => void;
@@ -27,6 +32,9 @@ type Props = {
 export default function SessionList({
   sessions,
   stars,
+  tags,
+  notes,
+  allTags,
   query,
   onQuery,
   starredOnly,
@@ -34,6 +42,8 @@ export default function SessionList({
   onOpen,
   onDelete,
   onToggleStar,
+  onSetTags,
+  onSetNote,
   onSummarize,
   onArchive,
   onOpenTerminal,
@@ -129,6 +139,8 @@ export default function SessionList({
                     hit={h}
                     query={query}
                     starred={!!stars[h.sessionPath]}
+                    tags={tags[h.sessionPath] ?? []}
+                    note={notes[h.sessionPath] ?? ''}
                     archived={isArchived}
                     hasCwd={!!sess?.cwd?.trim()}
                     onOpen={(idx) => {
@@ -204,9 +216,14 @@ export default function SessionList({
                   key={s.path}
                   session={s}
                   starred={!!stars[s.path]}
+                  tags={tags[s.path] ?? []}
+                  note={notes[s.path] ?? ''}
+                  allTags={allTags}
                   onOpen={() => onOpen(s)}
                   onDelete={() => onDelete(s)}
                   onToggleStar={() => onToggleStar(s)}
+                  onSetTags={(t) => onSetTags(s, t)}
+                  onSetNote={(n) => onSetNote(s, n)}
                   onSummarize={() => onSummarize(s)}
                   onArchive={onArchive && s.source === 'codex' ? () => onArchive(s) : undefined}
                   onOpenTerminal={onOpenTerminal ? () => onOpenTerminal(s) : undefined}

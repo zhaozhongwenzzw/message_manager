@@ -60,13 +60,15 @@ export async function writeJsonAtomic(file: string, data: unknown): Promise<void
 }
 
 export type Metadata = {
-  // keyed by absolute source file path
+  // all keyed by absolute source file path
   stars: Record<string, boolean>;
+  tags: Record<string, string[]>;
+  notes: Record<string, string>;
 };
 
 export async function readMetadata(): Promise<Metadata> {
   const data = await readJsonSafe<Partial<Metadata>>(METADATA_FILE, {});
-  return { stars: data.stars ?? {} };
+  return { stars: data.stars ?? {}, tags: data.tags ?? {}, notes: data.notes ?? {} };
 }
 
 export async function writeMetadata(m: Metadata): Promise<void> {

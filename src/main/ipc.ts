@@ -4,7 +4,15 @@ import { scanClaude, scanCodex } from './scanner';
 import { readSession } from './reader';
 import { softDelete, softDeleteClaudeProject } from './deleter';
 import { archiveCodex, unarchiveCodex } from './archive';
-import { clearStar, listStars, toggleStar } from './star';
+import {
+  clearSessionMeta,
+  listNotes,
+  listStars,
+  listTags,
+  setNote,
+  setTags,
+  toggleStar
+} from './star';
 import { readConfig, writeConfig, type LlmConfig } from './store';
 import { emptyTrash, listTrash, purgeFromTrash, restoreFromTrash, type RestoreArgs } from './trash';
 import { openInTerminal } from './terminal';
@@ -118,7 +126,7 @@ export function registerIpc(): void {
   ipcMain.handle('delete:session', async (_e, args: { source: 'claude' | 'codex'; path: string }) => {
     const trash = await resolveTrashDir();
     const res = await softDelete(args.source, args.path, trash);
-    await clearStar(args.path);
+    await clearSessionMeta(args.path);
     void removeSessionFromIndex(args.path);
     return res;
   });
@@ -146,6 +154,15 @@ export function registerIpc(): void {
   ipcMain.handle('star:list', () => listStars());
   ipcMain.handle('star:toggle', (_e, args: { path: string; starred: boolean }) =>
     toggleStar(args.path, args.starred)
+  );
+
+  ipcMain.handle('tags:list', () => listTags());
+  ipcMain.handle('tags:set', (_e, args: { path: string; tags: string[] }) =>
+    setTags(args.path, args.tags)
+  );
+  ipcMain.handle('notes:list', () => listNotes());
+  ipcMain.handle('notes:set', (_e, args: { path: string; note: string }) =>
+    setNote(args.path, args.note)
   );
 
   ipcMain.handle('config:get', () => readConfig());

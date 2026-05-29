@@ -46,6 +46,10 @@ export const api = {
   listStars: () => window.api.listStars() as Promise<Record<string, boolean>>,
   toggleStar: (path: string, starred: boolean) =>
     window.api.toggleStar(path, starred) as Promise<void>,
+  listTags: () => window.api.listTags() as Promise<Record<string, string[]>>,
+  setTags: (path: string, tags: string[]) => window.api.setTags(path, tags) as Promise<void>,
+  listNotes: () => window.api.listNotes() as Promise<Record<string, string>>,
+  setNote: (path: string, note: string) => window.api.setNote(path, note) as Promise<void>,
   getConfig: () => window.api.getConfig() as Promise<AppConfig>,
   setConfig: (cfg: AppConfig) => window.api.setConfig(cfg) as Promise<void>,
   openTrash: () => window.api.openTrash() as Promise<string>,
